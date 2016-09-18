@@ -5,6 +5,7 @@
 library(tidyr) #for spread() which is like reshape
 library(raster)
 library(rgdal)
+library(ggplot2)
 
 wd <- "Z:/Data/NCEAS_Postdoc/P4 ACR revised methods"
 wd <- "C:/Claire/NCEAS_Postdoc/P4 ACR revised methods"
@@ -27,7 +28,7 @@ rasterOptions(tmpdir= my_tmpdir)
 
 #################
 #Preprocessing of spatial data
-#Not done in R - see README.txt for processing that was done in ArcGIS instead
+#Not done in R - see ProcessingNotes.md for processing that was done in ArcGIS instead
 	# inpNLCD <- "Z:/Data/NCEAS_Postdoc/P1 Sage Grouse/Data/Original/LULC/National Land Cover Database 2011/nlcd_2011_landcover_2011_edition_2014_10_10/nlcd_2011_landcover_2011_edition_2014_10_10.img"
 	# privateDir <- "Z:/Data/NCEAS_Postdoc/P1 Sage Grouse/Data/Original/Land Ownership and Protected Areas/PAD-US CBI Version 2/Private land/PADUSCBIv2_Private_only_AllCounty"
 	# cdlDir <- "Z:/Data/NCEAS_Postdoc/P1 Sage Grouse/Data/Original/LULC/Cropland CDL/Lark et al 2015 data/Multitemporal_Results_FF2.tif"
@@ -137,19 +138,17 @@ rentList <- lapply(Rents, function(currRent){
 	write.csv(rentDF, paste0(outDir, "NASS_LandRents_2008_2012_allRents.csv"), row.names=FALSE)
 
 ##################
+#ANALYSIS
 
-#Read in data
+#Set up data
 rentDF <- read.csv(paste0(outDir, "NASS_LandRents_2008_2012_allRents.csv"), header=TRUE)
-cdlDF <- read.csv(paste0(outDir, "LarkCDL_PrivateArea_byCounty.csv"), header=TRUE)
-nlcdDF <- read.csv(paste0(outDir, "NLCD_PrivateArea_byCounty.csv"), header=TRUE)
+cdlDF <- read.csv(paste0(outDir, "LarkCDL_GrasslandPrivateArea_byCounty.csv"), header=TRUE)
 
 names(cdlDF) <- sub("VALUE", "CDL", names(cdlDF))
-names(nlcdDF) <- sub("VALUE", "NLCD", names(nlcdDF))
 
 #Join all data and summarise data
 allDat <- data.frame(
 				cdlDF[,which(!names(cdlDF) %in% c("FID", "Rowid_", "ADMIN_FIPS_1"))], #throw out some junk columns
-				nlcdDF[,10:26], #just pull rows with area values
 				rentDF[match(cdlDF$ADMIN_FIPS, rentDF$NASS_FIPS),grep(c("Av|Min|Max"), names(rentDF))]) #sort rows in rentDF by order of cdlDF, select columns containing Av, Min, Max
 
 #Calculate delta rent
@@ -157,19 +156,131 @@ allDat$DeltaRent <- allDat$NonIrrigatedCropland_rent_Av - allDat$Pasture_rent_Av
 
 #Calculate conversion probability of grassland (including pasture/hay)
 # = Area converted between 2008 and 2012 (ignore area reverted as it is hard to get native grassland back) / Area of grassland available for conversion
-#cdl classes are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland
+#cdl classes are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland, 15=forest, developed or water
+allDat$ConversionProb <- allDat$CDL_3 / (allDat$CDL_1 + allDat$CDL_3)
 
-allDat$ConversionProb <- allDat$CDL_3 / (allDat$CDL_1 - rowSums(allDat[, which(names(allDat) %in% paste0("NLCD_", c("0", "11", "12", "21", "22", "23", "24", "31", "41", "42", "43")))]))
+allDat$PropRent <- allDat$Pasture_rent_Av/allDat$NonIrrigatedCropland_rent_Av
+
+#########
+#Model conversion probabilities against rental rates
+plot(allDat$DeltaRent, allDat$ConversionProb)
+plot(allDat$PropRent, allDat$ConversionProb)
+plot(allDat$PropRent, log(allDat$ConversionProb))
+plot(allDat$DeltaRent, log(allDat$ConversionProb))
+mod1 <- lm(allDat$ConversionProb~allDat$DeltaRent)
+mod1 <- lm(allDat$ConversionProb~allDat$PropRent) #model is terrible, but line is flat - no relationship between ratios and conversion probability
+mod2 <- lm(log(allDat$ConversionProb)~allDat$DeltaRent)
 
 
-rowSums(allDat[, which(names(allDat) %in% paste0("NLCD_", c("0", "11", "12", "21", "22", "23", "24", "31", "41", "42", "43")))])/rowSums(allDat[, grep("NLCD_", names(allDat))])
+d <- log(allDat$ConversionProb)
 
-rowSums(allDat[, grep("NLCD_", names(allDat))])/rowSums(allDat[, grep("C_", names(allDat))])
+##################
+#Make nice plots
+plot(allDat$DeltaRent, allDat$ConversionProb)
+plot(allDat$DeltaRent, log(allDat$ConversionProb))
 
-"NLCD_0", 
-"NLCD_11", "NLCD_12", "NLCD_21", "NLCD_22", "NLCD_23", "NLCD_24", 
-"NLCD_31", "NLCD_41", "NLCD_42", "NLCD_43", "NLCD_52", "NLCD_71", 
-"NLCD_81", "NLCD_82", "NLCD_90", "NLCD_95",
+#Plot conversion prob against delta rents
+p <- ggplot(allDat, aes(DeltaRent, ConversionProb)) +
+	geom_point(colour='black', size=1) +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Delta non-irrigated cropland & pasture rents", y="Proportion of grassland converted to cropland 2008-2012")+
+	scale_x_continuous(expand = c(0.05, 0.05)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+	
+outPath <- paste0(outDir, "/figures/ConversionProb_vs_DeltaRents2.png")
+	ggsave(filename=outPath)
+
+	
+#Plot log conversion prob against delta rents	
+p <- ggplot(allDat, aes(DeltaRent, log(ConversionProb))) +
+	geom_point(colour='black', size=1) +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Delta non-irrigated cropland & pasture rents", y="Log proportion of grassland converted to cropland 2008-2012")+
+	scale_x_continuous(expand = c(0.05, 0.05)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+	
+outPath <- paste0(outDir, "/figures/ConversionProbLog_vs_DeltaRents2.png")
+	ggsave(filename=outPath)
+ 
+ 
+#Histogram of conversion prob
+p <- ggplot(allDat, aes((ConversionProb))) +
+	geom_histogram() +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="proportion of grassland converted to cropland 2008-2012", y="Frequency by county")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+
+outPath <- paste0(outDir, "/figures/Histogram_ConversionProb.png")
+	ggsave(filename=outPath)
+	
+#Histogram of log conversion prob
+p <- ggplot(allDat, aes((log(ConversionProb)))) +
+	geom_histogram() +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="proportion of grassland converted to cropland 2008-2012", y="Frequency by county")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+
+outPath <- paste0(outDir, "/figures/Histogram_ConversionProbLog.png")
+	ggsave(filename=outPath)
+	
+#Histogram of delta rents
+p <- ggplot(allDat, aes((DeltaRent))) +
+	geom_histogram() +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Delta non-irrigated cropland & pasture rents", y="Frequency by county")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+
+outPath <- paste0(outDir, "/figures/Histogram_DeltaRents.png")
+	ggsave(filename=outPath)
+	
+#
+#Plot delta rents and conversion probability against cumulative area of grassland in county
+sumDat <- allDat
+sumDat$binConvProb <- cut(sumDat$ConversionProb, breaks = c(seq(0, 0.3, by = .01)), labels = 0:29)
+sumDat$binDeltaRent <- cut(sumDat$DeltaRent, breaks = c(-51, seq(0, 230, by = 10)), labels = c("<0", seq(0, 210, by = 10), ">220"))
+cumAreaConvProp <- stats::aggregate(sumDat$CDL_1, list(sumDat$binConvProb), sum)
+cumAreaDeltaRent <- stats::aggregate(sumDat$CDL_1, list(sumDat$binDeltaRent), sum)
+
+#Histogram of log conversion prob against cumulative area of grassland in county
+p <- ggplot(cumAreaConvProp, aes(Group.1, cumsum(x))) +
+	geom_line(aes(group=1)) +
+	geom_point()+
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Percent of grassland converted to cropland 2008-2012", y="Area_grassland_remaining")+
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+
+outPath <- paste0(outDir, "/figures/AreaGrassland_vs_ConversionProbLog.png")
+	ggsave(filename=outPath)
+	
+#Histogram of delta rents against cumulative area of grassland in county
+p <- ggplot(cumAreaDeltaRent, aes(Group.1, cumsum(x))) +
+	geom_line(aes(group=1)) +
+	geom_point()+
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Delta non-irrigated cropland & pasture rents ($)", y="Area_grassland_remaining")+
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="none")#gets rid of legend
+
+outPath <- paste0(outDir, "/figures/AreaGrassland_vs_DeltaRents.png")
+	ggsave(filename=outPath)
+	
+
 
 
 
