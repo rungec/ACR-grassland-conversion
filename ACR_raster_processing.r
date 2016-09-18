@@ -161,6 +161,11 @@ allDat$ConversionProb <- allDat$CDL_3 / (allDat$CDL_1 + allDat$CDL_3)
 
 allDat$PropRent <- allDat$Pasture_rent_Av/allDat$NonIrrigatedCropland_rent_Av
 
+#Clean up data
+#there are 151 NAs in the DeltaRent, and 51 negative numbers
+#there is one NA in ConversionProb
+allDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
+
 #########
 #Model conversion probabilities against rental rates
 plot(allDat$DeltaRent, allDat$ConversionProb)
@@ -169,15 +174,55 @@ plot(allDat$PropRent, log(allDat$ConversionProb))
 plot(allDat$DeltaRent, log(allDat$ConversionProb))
 mod1 <- lm(allDat$ConversionProb~allDat$DeltaRent)
 mod1 <- lm(allDat$ConversionProb~allDat$PropRent) #model is terrible, but line is flat - no relationship between ratios and conversion probability
-mod2 <- lm(log(allDat$ConversionProb)~allDat$DeltaRent)
+mod2 <- lm(log(allDat$ConversionProb+1)~allDat$DeltaRent)
+summary(mod2)
+plot(mod2)
+mod2b <- lm(allDat$ConversionProb~log(allDat$DeltaRent+1))
+summary(mod2b)
+plot(mod2b)
+mod2c <- lm(log(allDat$ConversionProb+1)~log(allDat$DeltaRent+1))
+summary(mod2c) #not significant
+plot(mod2c)
+
+#Model just the non-zeros
+subDat <- allDat[allDat$ConversionProb>0 & allDat$DeltaRent>0,]
+plot(log(subDat$ConversionProb)~log(subDat$DeltaRent))
+plot(lm(log(subDat$ConversionProb)~log(subDat$DeltaRent))) #looks good
+summary(lm(log(subDat$ConversionProb)~log(subDat$DeltaRent))) #slope not significant
 
 
-d <- log(allDat$ConversionProb)
+plot(allDat$ConversionProb ~ allDat$CDL_1)
+plot(log(allDat$ConversionProb+1) ~ log(allDat$CDL_1+1))
+mod3 <- lm(allDat$ConversionProb ~ allDat$CDL_1)
+plot(mod3)#terrible
+summary(mod3) #significant
+mod4 <- lm(allDat$ConversionProb ~ poly(allDat$CDL_1, 2))
+plot(mod4) #terrible
+summary(mod4) #not significant
+
+allDat$Total_Area_m2 = rowSums(allDat[,c("CDL_1", "CDL_2", "CDL_3", "CDL_4", "CDL_5")])
+allDat$PropGrasslandRemaining = allDat$CDL_1/allDat$Total_Area_m2
+allDat$PropCropland = (allDat$CDL_2+allDat$CDL_3)/allDat$Total_Area_m2
+
+#Conversion Probability against area of grassland remaining in county
+plot(allDat$ConversionProb ~ allDat$PropGrasslandRemaining) 
+summary(lm(allDat$ConversionProb ~ allDat$PropGrasslandRemaining)) #significant
+plot(lm(allDat$ConversionProb ~ allDat$PropGrasslandRemaining)) #not the worst model, residuals skewed
+#Conversion Probability against area of cropland in county
+plot(allDat$ConversionProb ~ allDat$PropCropland)
+summary(lm(allDat$ConversionProb ~ allDat$PropCropland)) #conversion probability increases significantly as amount of cropland in county increases (slope=0.032)
+plot(lm(allDat$ConversionProb ~ allDat$PropCropland)) #not the worst, residuals skewed
+
 
 ##################
 #Make nice plots
 plot(allDat$DeltaRent, allDat$ConversionProb)
 plot(allDat$DeltaRent, log(allDat$ConversionProb))
+plot(log(allDat$DeltaRent), log(allDat$ConversionProb))
+hist(log(allDat$DeltaRent)
+
+
+
 
 #Plot conversion prob against delta rents
 p <- ggplot(allDat, aes(DeltaRent, ConversionProb)) +
