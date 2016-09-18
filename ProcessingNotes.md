@@ -46,10 +46,10 @@ then reclassify Multitemporal_Results_FF2.tif as value 15 (no data). Snap to and
 
 ###Calculate area of grassland converted to cropland in each county
 *manual in ArcGIS*
-Tabulate by area (Zonal toolbox) of LarkCDL_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to LarkCDL_grassland.tif
-Classes of LarkCDL_grassland.tif are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland  
+Tabulate by area (Zonal toolbox) of LarkCDL_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif
+Classes of LarkCDL_grassland.tif are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland , 15=forest,water or developed
 Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table  
-> LarkCDL_Grassland_PrivateArea_byCounty.csv
+> LarkCDL_GrasslandPrivateArea_byCounty.csv
 Areas are in m2. The sum of values 0 to 5 is the sum area of private grassland or cropland in each county.
 
 
@@ -70,7 +70,9 @@ Data output
 
 ------------
 ##Combine datasets
-
+*ACR_raster_processing.r*
+Combined LarkCDL_Grassland_PrivateArea_byCounty.csv and NASS_LandRents_2008_2012_allRents.csv based on FIPS code.  
+Calculated land conversion probabilites, ignoring land that is abandoned or intermittent cropland.  
 
 
 ------------
