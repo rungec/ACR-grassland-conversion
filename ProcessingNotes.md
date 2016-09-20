@@ -44,6 +44,13 @@ Use 'Con' tool (conditional). If Class_Name in 2015 CDL layer 2015_30m_cdls.img 
 then reclassify Multitemporal_Results_FF2.tif as value 15 (no data). Snap to and extent of Multitemporal_Results_FF2.tif
 > LarkCDL_grassland.tif
 
+###Mask Forest, Water and Developed land from Lark's CDL data - year_from_crop_ff2.tif
+*manual in ArcGIS*
+Use 'Con' tool (conditional). If Class_Name in 2015 CDL layer 2015_30m_cdls.img is
+"Class_Name" = 'Clouds/No Data' OR "Class_Name" = 'Deciduous Forest' OR "Class_Name" ='Developed'OR "Class_Name" = 'Developed/High Intensity'OR "Class_Name" = 'Developed/Low Intensity' OR "Class_Name" ='Developed/Med Intensity'OR "Class_Name" = 'Developed/Open Space' OR "Class_Name" ='Evergreen Forest' OR "Class_Name" ='Forest'OR "Class_Name" = 'Mixed Forest' OR "Class_Name" ='Open Water'OR "Class_Name" = 'Perennial Ice/Snow' OR "Class_Name" ='Water'
+then reclassify year_from_crop_ff2.tif as value 65535 (no data). Snap to and extent of year_from_crop_ff2.tif
+> LarkCDL_yearfromcrop_grassland.tif
+
 ###Calculate area of grassland converted to cropland in each county
 *manual in ArcGIS*
 Tabulate by area (Zonal toolbox) of LarkCDL_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif
@@ -51,6 +58,13 @@ Classes of LarkCDL_grassland.tif are 1=stable noncrop, 2= stable crop, 3= conver
 Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table  
 > LarkCDL_GrasslandPrivateArea_byCounty.csv
 Areas are in m2. The sum of values 0 to 5 is the sum area of private grassland or cropland in each county.
+
+###Calculate area of grassland converted to cropland in each county in each year
+*manual in ArcGIS*
+Tabulate by area (Zonal toolbox) of LarkCDL_yearfromcrop_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif
+Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table  
+> LarkCDL_GrasslandPrivateYearConverted_byCounty.csv
+Areas are in m2 of private grassland converted to cropland in each year in each county.
 
 
 
