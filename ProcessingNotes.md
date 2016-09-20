@@ -41,7 +41,8 @@ Areas are in m2.
 
 ###Mask Forest, Water and Developed land from Lark's CDL data
 *manual in ArcGIS*  
-Now using CDL as a grassland mask instead of the NLCD - conversion probabilities are calculated for land that is not classified as water, forest or developed in the 2015 CDL (i.e. grassland mask includes only pixels classified as shrubland, wetlands, native grassland and pasture/hay).
+Now using CDL as a grassland mask instead of the NLCD - conversion probabilities are calculated for land that is not classified as water, forest or developed in the 2015 CDL (i.e. grassland mask includes only pixels classified as shrubland, wetlands, native grassland and pasture/hay).  
+
 Use 'Con' tool (conditional). If Class_Name in 2015 CDL layer 2015_30m_cdls.img is
 "Class_Name" = 'Clouds/No Data' OR "Class_Name" = 'Deciduous Forest' OR "Class_Name" ='Developed'OR "Class_Name" = 'Developed/High Intensity'OR "Class_Name" = 'Developed/Low Intensity' OR "Class_Name" ='Developed/Med Intensity'OR "Class_Name" = 'Developed/Open Space' OR "Class_Name" ='Evergreen Forest' OR "Class_Name" ='Forest'OR "Class_Name" = 'Mixed Forest' OR "Class_Name" ='Open Water'OR "Class_Name" = 'Perennial Ice/Snow' OR "Class_Name" ='Water'
 then reclassify Multitemporal_Results_FF2.tif as value 15 (no data). Snap to and extent of Multitemporal_Results_FF2.tif
