@@ -24,7 +24,7 @@ rasterOptions(tmpdir= my_tmpdir)
 #set up dirs
 	rentDir <- paste0(wd, "/Data/NASS county rental rates/NASS_LandRents_2008_2016.csv")
 
-	outDir <- paste0(wd, "/Analysis/")
+	outDir <- paste0(wd, "/Analysis/tables/")
 
 #################
 #Preprocessing of spatial data
@@ -91,7 +91,7 @@ rasterOptions(tmpdir= my_tmpdir)
 	names(rentWide)[which(names(rentWide)=="County")] <- "COUNTY"
 
 	#save reshaped data
-	write.csv(rentWide, paste0(outDir, "NASS_LandRents_2008_2012_reshaped.csv"), row.names=FALSE)
+	write.csv(rentWide, paste0(outDir, "processed NASS/NASS_LandRents_2008_2012_reshaped.csv"), row.names=FALSE)
 
 	###Fill in gaps for counties with no data
 	#Table of which district counties are in to fill in gaps
@@ -126,7 +126,7 @@ rentList <- lapply(Rents, function(currRent){
 			currdf[i,]<- data.frame(currdf[i, 1:4], currFill)
 			}
 		}
-	write.csv(currdf, paste0(outDir, "NASS_LandRents_2008_2012_", names(Rents[which(Rents %in% currRent)]), ".csv"), row.names=FALSE) 
+	write.csv(currdf, paste0(outDir, "processed NASS/NASS_LandRents_2008_2012_", names(Rents[which(Rents %in% currRent)]), ".csv"), row.names=FALSE) 
 	return(currdf)
 	})
 
@@ -135,44 +135,63 @@ rentList <- lapply(Rents, function(currRent){
 	rentDF <- data.frame(countyList, rentList[[1]][c("2008", "2009", "2010", "2011", "2012", "Av", "Min", "Max")], rentList[[2]][c("2008", "2009", "2010", "2011", "2012", "Av", "Min", "Max")], rentList[[3]][c("2008", "2009", "2010", "2011", "2012", "Av", "Min", "Max")])
 	names(rentDF) <- c(names(countyList), paste(rep(names(Rents), each=length(c("2008", "2009", "2010", "2011", "2012", "Av", "Min", "Max"))), c("2008", "2009", "2010", "2011", "2012", "Av", "Min", "Max"), sep="_"))
 
-	write.csv(rentDF, paste0(outDir, "NASS_LandRents_2008_2012_allRents.csv"), row.names=FALSE)
+	write.csv(rentDF, paste0(outDir, "processed NASS/NASS_LandRents_2008_2012_allRents.csv"), row.names=FALSE)
 
 ####################
 #ANALYSIS
 ####################
 #Set up data
-rentDF <- read.csv(paste0(outDir, "NASS_LandRents_2008_2012_allRents.csv"), header=TRUE)
-cdlDF <- read.csv(paste0(outDir, "LarkCDL_GrasslandPrivateArea_byCounty.csv"), header=TRUE)
+rentDF <- read.csv(paste0(outDir, "processed NASS/NASS_LandRents_2008_2012_allRents.csv"), header=TRUE)
 
-names(cdlDF) <- sub("VALUE", "CDL", names(cdlDF))
-
-#Join all data and summarise data
-allDat <- data.frame(
-				cdlDF[,which(!names(cdlDF) %in% c("FID", "Rowid_", "ADMIN_FIPS_1"))], #throw out some junk columns
-				rentDF[match(cdlDF$ADMIN_FIPS, rentDF$NASS_FIPS),grep(c("Av|Min|Max"), names(rentDF))]) #sort rows in rentDF by order of cdlDF, select columns containing Av, Min, Max
-
-
-
+#for conversion on all land capability classes
+#cdlDF <- read.csv(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateArea_byCounty.csv"), header=TRUE) 
+#cdlDF <- cdlDF[,which(!names(cdlDF) %in% c("FID", "Rowid_", "ADMIN_FIPS_1"))], #throw out some junk columns
+#names(cdlDF) <- sub("VALUE", "CDL", names(cdlDF))
 #Calculate conversion probability of grassland (including pasture/hay)
 # = Area converted between 2008 and 2012 (ignore area reverted as it is hard to get native grassland back) / Area of grassland available for conversion
 #cdl classes are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland, 15=forest, developed or water
-allDat$ConversionProb <- allDat$CDL_3 / (allDat$CDL_1 + allDat$CDL_3)
-allDat$Total_Area_m2 = rowSums(allDat[,c("CDL_1", "CDL_2", "CDL_3", "CDL_4", "CDL_5")])
-allDat$PropGrasslandRemaining = allDat$CDL_1/allDat$Total_Area_m2
-allDat$PropCropland = (allDat$CDL_2+allDat$CDL_3)/allDat$Total_Area_m2
+# allDat$ConversionProb <- allDat$CDL_3 / (allDat$CDL_1 + allDat$CDL_3)
+# allDat$Total_Area_m2 = rowSums(allDat[,c("CDL_1", "CDL_2", "CDL_3", "CDL_4", "CDL_5")])
+# allDat$PropGrasslandRemaining = allDat$CDL_1/allDat$Total_Area_m2
+# allDat$PropCropland = (allDat$CDL_2+allDat$CDL_3)/allDat$Total_Area_m2
+
+##for conversion on individual land capability classes 
+cdlfilelist <- paste0(rep(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateArea_LCC"), 10), c(1:8, "1to6", "7to8"), rep("_byCounty.csv",10))
+cdlDF <- docall(cbind, lapply(cdlfilelist, function(x) {
+								currlcc <- strsplit(basename(x[[1]][1]), "_")[[1]][3]
+								currdf <- read.csv(x, header=TRUE) #read in csv
+								#summarise the data
+								currdf$ConversionProb_VALUE <- currdf$VALUE_3 / (currdf$VALUE_1 + currdf$VALUE_3)
+								currdf$VALUE_Total_Area_m2 = rowSums(currdf[,c("VALUE_1", "VALUE_2", "VALUE_3", "VALUE_4", "VALUE_5")])
+								currdf$VALUE_PropGrasslandRemaining = currdf$VALUE_1/currdf$VALUE_Total_Area_m2
+								currdf$VALUE_PropCropland = (currdf$VALUE_2+currdf$VALUE_3)/currdf$VALUE_Total_Area_m2
+								names(currdf) <- sub("VALUE", currlcc, names(currdf)) #rename columns
+								}))
+cdlDF <- cdlDF[,c(2:7, grep("LCC", names(currdf)))] #just pull "VALUE" columns
+				
+#load year converted to crop data
+yearDF <- read.csv(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateYeartoCrop_byCounty.csv"), header=TRUE)
+names(yearDF) <- sub("VALUE", "Converted", names(yearDF))
+
+#Join all data and summarise data
+allDat <- data.frame(
+				cdlDF,
+				yearDF[, c(paste0(rep("Converted_", 4), c(2009:2012)))],
+				rentDF[match(cdlDF$ADMIN_FIPS, rentDF$NASS_FIPS),grep(c("Av|Min|Max"), names(rentDF))]) #sort rows in rentDF by order of cdlDF, select columns containing Av, Min, Max
 
 #Calculate delta rent
 allDat$DeltaRent <- allDat$NonIrrigatedCropland_rent_Av - allDat$Pasture_rent_Av
 allDat$PropRent <- allDat$Pasture_rent_Av/allDat$NonIrrigatedCropland_rent_Av
 
-allDat <- allDat[!is.na(allDat$ConversionProb),]
-write.csv(allDat, paste0(outDir, "LandConversion_combinedData_allUSStates.csv"), row.names=FALSE)
+#allDat <- allDat[!is.na(allDat$ConversionProb),]
+write.csv(allDat, paste0(outDir, "all data combined/LandConversion_combinedData_allUSStates.csv"), row.names=FALSE)
 
 ###############
 #Clean up data
 #there are 151 NAs in the DeltaRent, and 51 negative numbers
 #there is one NA in ConversionProb
-subDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
+#subDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
+subDat <- allDat[!is.na(allDat$DeltaRent) & allDat$DeltaRent>=0, ]
 
 
 ##################
@@ -188,7 +207,7 @@ p <- ggplot(subDat, aes(DeltaRent, ConversionProb)) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProb_vs_DeltaRents2.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_DeltaRents2.png")
 	ggsave(filename=outPath)
 	
 #Plot log conversion prob against delta rents	
@@ -202,7 +221,7 @@ p <- ggplot(subDat, aes(DeltaRent, log(ConversionProb+1))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProbLog_vs_DeltaRents3.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents3.png")
 	ggsave(filename=outPath)
 
 #Plot conversion prob against delta rents, include trendline and only non-zero data	
@@ -222,7 +241,7 @@ p <- ggplot(subDat2, aes(DeltaRent, ConversionProb)) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProb_vs_DeltaRentsNonZero.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_DeltaRentsNonZero.png")
 	ggsave(filename=outPath)
 	
 #Plot conversion prob against prop rents, include trendline and only non-zero data	
@@ -241,7 +260,7 @@ p <- ggplot(subDat2, aes(PropRent, ConversionProb)) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProb_vs_PropRentsNonZero.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_PropRentsNonZero.png")
 	ggsave(filename=outPath)
 	
 #Plot conversion prob against cropland area, include trendline
@@ -260,7 +279,7 @@ p <- ggplot(allDat, aes(PropCropland, ConversionProb)) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProb_vs_PropCropland.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_PropCropland.png")
 	ggsave(filename=outPath)
  
 #Plot conversion prob against cropland area, include trendline, nonzero data
@@ -279,7 +298,7 @@ p <- ggplot(subDat2, aes(PropCropland, ConversionProb)) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 	
-outPath <- paste0(outDir, "/figures/ConversionProb_vs_PropCropland_NonZero.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_PropCropland_NonZero.png")
 	ggsave(filename=outPath)
  
  
@@ -293,7 +312,7 @@ p <- ggplot(subDat, aes((ConversionProb))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/Histogram_ConversionProb.png")
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProb.png")
 	ggsave(filename=outPath)
 	
 #Histogram of conversion prob - zoom
@@ -306,7 +325,7 @@ p <- ggplot(subDat, aes((ConversionProb))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/Histogram_ConversionProb_zoom.png")
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProb_zoom.png")
 	ggsave(filename=outPath)
 	
 #Histogram of log conversion prob
@@ -319,7 +338,7 @@ p <- ggplot(subDat, aes((log(ConversionProb+1)))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/Histogram_ConversionProbLog.png")
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProbLog.png")
 	ggsave(filename=outPath)
 	
 #Histogram of delta rents
@@ -332,7 +351,7 @@ p <- ggplot(subDat, aes((DeltaRent))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/Histogram_DeltaRents.png")
+outPath <- paste0(dirname(outDir), "/figures/Histogram_DeltaRents.png")
 	ggsave(filename=outPath)
 	
 #
@@ -359,7 +378,7 @@ p <- ggplot(cumAreaConvProp, aes(Group.1, rev(cumsum(rev(Area_mha))))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/AreaGrassland_vs_ConversionProb.png")
+outPath <- paste0(dirname(outDir), "/figures/AreaGrassland_vs_ConversionProb.png")
 	ggsave(filename=outPath)
 
 #Histogram of conversion prob against cumulative area of grassland (in million ha) in county
@@ -376,7 +395,7 @@ p <- ggplot(cumAreaConvProp[2:11,], aes(Group.1, rev(cumsum(rev(Area_mha))))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/AreaGrassland_vs_ConversionProb_zoom.png")
+outPath <- paste0(dirname(outDir), "/figures/AreaGrassland_vs_ConversionProb_zoom.png")
 	ggsave(filename=outPath)
 
 cumsum(rev(cumAreaConvProp$Area_mha))
@@ -392,7 +411,7 @@ p <- ggplot(cumAreaDeltaRent, aes(Group.1, cumsum(x))) +
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	theme(legend.position="none")#gets rid of legend
 
-outPath <- paste0(outDir, "/figures/AreaGrassland_vs_DeltaRents.png")
+outPath <- paste0(dirname(outDir), "/figures/AreaGrassland_vs_DeltaRents.png")
 	ggsave(filename=outPath)
 	
 
