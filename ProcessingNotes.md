@@ -52,8 +52,15 @@ then reclassify Multitemporal_Results_FF2.tif as value 15 (no data). Snap to and
 *manual in ArcGIS*  
 Use 'Con' tool (conditional). If Class_Name in 2015 CDL layer 2015_30m_cdls.img is
 "Class_Name" = 'Clouds/No Data' OR "Class_Name" = 'Deciduous Forest' OR "Class_Name" ='Developed'OR "Class_Name" = 'Developed/High Intensity'OR "Class_Name" = 'Developed/Low Intensity' OR "Class_Name" ='Developed/Med Intensity'OR "Class_Name" = 'Developed/Open Space' OR "Class_Name" ='Evergreen Forest' OR "Class_Name" ='Forest'OR "Class_Name" = 'Mixed Forest' OR "Class_Name" ='Open Water'OR "Class_Name" = 'Perennial Ice/Snow' OR "Class_Name" ='Water'
-then reclassify year_from_crop_ff2.tif as value 65535 (no data). Snap to and extent of year_from_crop_ff2.tif
+then reclassify year_from_crop_ff2.tif as "" no data. Snap to and extent of year_from_crop_ff2.tif
 > LarkCDL_yearfromcrop_grassland.tif
+
+###Mask Forest, Water and Developed land from Lark's CDL data - year_to_crop_ff2.tif
+*manual in ArcGIS*  
+Use 'Con' tool (conditional). If Class_Name in 2015 CDL layer 2015_30m_cdls.img is
+"Class_Name" = 'Clouds/No Data' OR "Class_Name" = 'Deciduous Forest' OR "Class_Name" ='Developed'OR "Class_Name" = 'Developed/High Intensity'OR "Class_Name" = 'Developed/Low Intensity' OR "Class_Name" ='Developed/Med Intensity'OR "Class_Name" = 'Developed/Open Space' OR "Class_Name" ='Evergreen Forest' OR "Class_Name" ='Forest'OR "Class_Name" = 'Mixed Forest' OR "Class_Name" ='Open Water'OR "Class_Name" = 'Perennial Ice/Snow' OR "Class_Name" ='Water'
+then reclassify year_to_crop_ff2.tif as value 65535 (no data). Snap to and extent of year_to_crop_ff2.tif
+> LarkCDL_yeartocrop_grassland.tif
 
 ###Calculate area of grassland converted to cropland in each county
 *manual in ArcGIS*  
@@ -66,11 +73,63 @@ Areas are in m2. The sum of values 0 to 5 is the sum area of private grassland o
 
 ###Calculate area of grassland converted to cropland in each county in each year
 *manual in ArcGIS*  
-Tabulate by area (Zonal toolbox) of LarkCDL_yearfromcrop_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif  
+Tabulate by area (Zonal toolbox) of LarkCDL_yeartocrop_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif  
 Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table    
-> LarkCDL_GrasslandPrivateYearConverted_byCounty.csv  
+> LarkCDL_GrasslandPrivateYearToCrop_byCounty.csv  
 Areas are in m2 of private grassland converted to cropland in each year in each county.
 
+###Calculate area of cropland converted to other use in each county in each year
+*manual in ArcGIS*  
+Tabulate by area (Zonal toolbox) of LarkCDL_yearfromcrop_grassland.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to Multitemporal_Results_FF2.tif  
+Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table    
+> LarkCDL_GrasslandPrivateYearFromCrop_byCounty.csv  
+Areas are in m2 of private grassland converted to cropland in each year in each county.
+
+------------
+###Calculate area of each land capability class in each county (all land)
+*manual in ArcGIS*  
+Tabulate by area (Zonal toolbox) of LCC_100.tif using USGS_County_boundaries_USContinental_albers.shp ADMIN_FIPS as zones, and with cell size set to 100m 
+Classes of LarkCDL_grassland.tif are 1 to 8 (1-6 suitable, 7-8 unsuitable)
+Joined to USGS_County_boundaries_USContinental_albers.shp by ADMIN_FIPS and exported table    
+> Areaof_LandCapability_byCounty.csv  
+
+###Calculate area of each land capability class in each county (private unprotected land only)
+*manual in ArcGIS*  
+Tabulate by area (Zonal toolbox) of LCC_100.tif using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to 100m 
+Classes of LarkCDL_grassland.tif are 1 to 8 (1-6 suitable, 7-8 unsuitable)
+Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table    
+> Areaof_LandCapability_byCounty_PrivateLandOnly.csv  
+
+###Make rasters of conversion for each of the 8 land capability classes
+*manual in ArcGIS*  
+Reclassify all areas outside a given capability class as no data.  
+
+Use 'Con' tool (conditional). If Class_Name in Land Capability Class layer LCC_100m.tif is
+"Value" <> 1 (etc) then reclassify Multitemporal_Results_FF2.tif as value 16. Snap to and extent of Multitemporal_Results_FF2.tif
+> LarkCDL_grassland_LCC1.tif
+> LarkCDL_grassland_LCC2.tif
+> LarkCDL_grassland_LCC3.tif
+> LarkCDL_grassland_LCC4.tif
+> LarkCDL_grassland_LCC5.tif
+> LarkCDL_grassland_LCC6.tif
+> LarkCDL_grassland_LCC7.tif
+> LarkCDL_grassland_LCC8.tif
+
+###Calculate area of grassland in each land capability class converted to cropland in each county
+*manual in ArcGIS*  
+Tabulate by area (Zonal toolbox) of LarkCDL_grassland_LCC1.tif (etc) using PADUSCBIv2_Private_Land_only_AllCounty_diss.shp ADMIN_FIPS as zones, and with cell size set to LarkCDL_grassland_LCC1.tif (etc) 
+Classes of LarkCDL_grassland_LCC1.tif are 1=stable noncrop, 2= stable crop, 3= converted to crop, 4= abandoned, 5=intermittent cropland , 15=forest,water or developed, 16=other LCC  
+Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported table    
+> LarkCDL_GrasslandPrivateArea_LCC1_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC2_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC3_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC4_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC5_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC6_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC7_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC8_byCounty.csv  
+
+Areas are in m2. The sum of values 0 to 5 is the sum area of private grassland or cropland in each county.
 
 
 ------------
