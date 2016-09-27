@@ -114,6 +114,18 @@ Use 'Con' tool (conditional). If Class_Name in Land Capability Class layer LCC_1
 > LarkCDL_grassland_LCC6.tif
 > LarkCDL_grassland_LCC7.tif
 > LarkCDL_grassland_LCC8.tif
+> LarkCDL_grassland_LCC1to6.tif
+> LarkCDL_grassland_LCC7or8.tif
+
+Use 'Con' tool (conditional). If Class_Name in Land Capability Class layer LCC_100m.tif is
+"Value" <> 1 (etc) then reclassify LarkCDL_yeartocrop_grassland.tif as value 16. Snap to and extent of LarkCDL_yeartocrop_grassland.tif
+> LarkCDL_yeartocrop_grassland_LCC1to6.tif
+> LarkCDL_yeartocrop_grassland_LCC7or8.tif
+
+Use 'Con' tool (conditional). If Class_Name in Land Capability Class layer LCC_100m.tif is
+"Value" <> 1 (etc) then reclassify LarkCDL_yearfromcrop_grassland.tif as value 16. Snap to and extent of LarkCDL_yearfromcrop_grassland.tif
+> LarkCDL_yearfromcrop_grassland_LCC1to6.tif
+> LarkCDL_yearfromcrop_grassland_LCC7or8.tif
 
 ###Calculate area of grassland in each land capability class converted to cropland in each county
 *manual in ArcGIS*  
@@ -128,6 +140,13 @@ Joined to PADUSCBIv2_Private_Land_only_AllCounty_diss by ADMIN_FIPS and exported
 > LarkCDL_GrasslandPrivateArea_LCC6_byCounty.csv  
 > LarkCDL_GrasslandPrivateArea_LCC7_byCounty.csv  
 > LarkCDL_GrasslandPrivateArea_LCC8_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC1to6_byCounty.csv  
+> LarkCDL_GrasslandPrivateYearFromCrop_LCC1to6_byCounty.csv  
+> LarkCDL_GrasslandPrivateYearToCrop_LCC1to6_byCounty.csv  
+> LarkCDL_GrasslandPrivateArea_LCC7or8_byCounty.csv 
+> LarkCDL_GrasslandPrivateYearFromCrop_LCC7or8_byCounty.csv 
+> LarkCDL_GrasslandPrivateYearToCrop_LCC7or8_byCounty.csv 
+ 
 
 Areas are in m2. The sum of values 0 to 5 is the sum area of private grassland or cropland in each county.
 
