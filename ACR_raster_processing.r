@@ -24,8 +24,9 @@ rasterOptions(tmpdir= my_tmpdir)
 
 #set up dirs
 	rentDir <- paste0(wd, "/Data/NASS county rental rates/NASS_LandRents_2008_2016.csv")
-
+	countyDir <- paste0(wd, "/Data/County boundaries/USGS_County_boundaries_USContinental_albers")
 	outDir <- paste0(wd, "/Analysis/tables/")
+	sgCountyDir <- paste0(wd, "/Data/County boundaries/SGCounties_overlapping_PACSandBreeding.csv")
 
 #################
 #Preprocessing of spatial data
@@ -143,7 +144,7 @@ rentList <- lapply(Rents, function(currRent){
 ####################
 #Set up data
 rentDF <- read.csv(paste0(outDir, "processed NASS/NASS_LandRents_2008_2012_allRents.csv"), header=TRUE)
-popnDF <- read.csv("Z:/Data/NCEAS_Postdoc/P1 Sage Grouse/Data/Original/Economic/USCensus/PEP_2012_PEPANNRES_with_ann_forR.csv", header=TRUE, stringsAsFactors=FALSE)
+popnDF <- read.csv(paste0(wd, "/Data/USCensus/PEP_2012_PEPANNRES_with_ann_forR.csv"), header=TRUE, stringsAsFactors=FALSE)
 
 #for conversion on all land capability classes
 cdlDF <- read.csv(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateArea_byCounty.csv"), header=TRUE) 
@@ -174,15 +175,18 @@ cdlDF2 <- data.frame(llply(cdlfilelist, function(x) {
 cdlDF2 <- cdlDF2[,c(grep("LCC", names(cdlDF2)))] #just pull "VALUE" columns
 				
 #load year converted to crop data
-yearfilelist <- paste0(rep(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateYeartoCrop_LCC"), 2), c("1to6", "7or8"), rep("_byCounty.csv",2))
+yearfilelist <- paste0(rep(paste0(outDir, "land use by area/LarkCDL_GrasslandPrivateYearToCrop_LCC"), 2), c("1to6", "7or8"), rep("_byCounty.csv",2))
 yearDF <- data.frame(llply(yearfilelist, function(x) {
 						currlcc <- strsplit(basename(x[[1]][1]), "_")[[1]][3]
 						currdf <- read.csv(x, header=TRUE)#read in csv
 						names(currdf) <- sub("VALUE", paste0(currlcc, "_Converted"), names(currdf)) #rename cols
 						currdf <- currdf[,which(!names(currdf) %in%c("FID", "Area_ha", "Rowid_", "ADMIN_FIPS_1"))]#get rid of unwanted columns
+						currdf <- merge(cdlDF[,c("ADMIN_FIPS", "ADMIN_NAME")], currdf, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE, sort=FALSE) 
 						return(currdf)
 						}))
+
 yearDF <- yearDF[,c(grep("LCC", names(yearDF)))] #just pull "VALUE" columns
+
 
 #Join all data and summarise data
 allDat <- data.frame(
@@ -200,73 +204,110 @@ allDat$PopnChg_2010_2012_Perc <- 100*allDat$PopnChg_2010_2012/allDat$resbase4201
 #allDat <- allDat[!is.na(allDat$ConversionProb),]
 write.csv(allDat, paste0(outDir, "all data combined/LandConversion_combinedData_allUSStates_lcc.csv"), row.names=FALSE)
 
+#Make a shp
+counties <- readOGR(dirname(countyDir), basename(countyDir), stringsAsFactors=FALSE)
+counties@data$ADMIN_FIPS <- as.numeric(counties@data$ADMIN_FIPS)
+counties@data <- sp::merge(counties@data, allDat, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE)
+writeOGR(counties, dsn=paste0(dirname(outDir), "/shps/all data combined"), "LandConversion_combinedData_allUSStates_lcc", driver="ESRI Shapefile")
+
+
 ###############
 #Clean up data
 #there are 151 NAs in the DeltaRent, and 51 negative numbers
 #there is one NA in ConversionProb
-#subDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
-subDat <- allDat[!is.na(allDat$DeltaRent) & allDat$DeltaRent>=0, ]
+subDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
+#subDat <- allDat[!is.na(allDat$DeltaRent) & allDat$DeltaRent>=0, ]
 
-##################
-#Plot population against land conversion
+ss2Dat <- subDat[subDat$ConversionProb_LCC1to6>0,]
+logConversionProb1to6 <- log(ss2Dat$ConversionProb_LCC1to6)
+allMod <- with(ss2Dat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))
 
-modx <- lm(allDat$ConversionProb~log(allDat$respop72012))
-modx <- lm(log(allDat$ConversionProb+1)~allDat$respop72012)
-mody <- lm(log(allDat$ConversionProb+1)~log(allDat$respop72012)+allDat$DeltaRent)
-plot(lm(log(allDat$ConversionProb+1)~log(allDat$respop72012)))
 
-plot(allDat$respop72012, allDat$ConversionProb)
-plot(log(allDat$ConversionProb+1)~log(allDat$respop72012))
-plot(allDat$ConversionProb~log(allDat$respop72012))
-plot(log(allDat$ConversionProb+1)~allDat$respop72012)
-plot(allDat$PopnChg_2010_2012_Perc, allDat$ConversionProb)
+###############
+#Plot relationship between log Conversion & DeltaRent just for sage grouse counties
+sgCounties <- read.csv(sgCountyDir, stringsAsFactors=FALSE, header=TRUE)
+sgDat <- sp::merge(sgCounties, allDat, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE)
+write.csv(sgDat, paste0(outDir, "/all data combined/LandConversion_combinedData_sgCounties_lcc.csv"), row.names=FALSE)
+sgDat <- sgDat[!is.na(sgDat$DeltaRent) & !is.na(sgDat$ConversionProb) & sgDat$DeltaRent>=0, ]
 
-summary(allDat$PopnChg_2010_2012_Perc)
-quantile(allDat$PopnChg_2010_2012_Perc)
-library(binr)
-bins.quantiles(allDat$PopnChn_2012_2012_Perc)
+ZIFConversionProb1to6 <- log(sgDat$ConversionProb_LCC1to6+1)
 
-bins <- 3
-cutpoints <- quantile(subDat$PopnChg_2010_2012_Perc, (0:bins)/bins)
-binned <- cut(subDat$PopnChg_2010_2012_Perc, cutpoints, include.lowest=TRUE)
-subDat$PopnChngBin <- cut(subDat$PopnChg_2010_2012_Perc, cutpoints, include.lowest=TRUE)
+subsgDat <- sgDat[sgDat$ConversionProb_LCC1to6>0,]
+logConversionProb1to6 <- log(subsgDat$ConversionProb_LCC1to6)
 
-##################
-#Plot ConversionProb vs DeltaRent by popnchange
-#Plot log conversion prob against delta rents, by lcc
-p <- ggplot(subDat, aes(log(ConversionProb), DeltaRent, colour=PopnChngBin)) +
-	geom_point(size=1.5, alpha=.8) +
-	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+sgDat$ZIFConversionProb <- with(sgDat, log(ConversionProb+1))
+sgMod <- with(sgDat,glm(ZIFConversionProb~DeltaRent))
+sgMod <- with(sgDat, glm(ZIFConversionProb~DeltaRent*log(respop72012)*PropCropland))
+sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland))
+sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland)) #remove zero conversion
+sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland)) #remove zero conversion #SIGNFICANT DELTA RENT!!!!
+#next step try a mixed model with LCC as a factor
+summary(sgMod)
+plot(sgMod)
+
+p <- ggplot(sgDat, aes(DeltaRent,ZIFConversionProb)) +
+	geom_point(size=1.5) +
+	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
 	theme_bw() + #get rid of grey bkg and gridlines
 	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-	labs(y="Non-irrigated cropland rent minus pasture rent", x="Log proportion of grassland converted to cropland 2008-2012")+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="ZIF Log proportion of grassland converted to cropland 2008-2012")+
 	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
-	scale_colour_discrete(name="Population change 2010-2012", labels=c("Decrease (<0.77%)", "Stable (-0.77 to 0.72%)", "Increase (>0.72%)"))+
-	theme(legend.key=element_blank())#"none" gets rid of legend
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
 	
-outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_PopnChange.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_ZIF.png")
 	ggsave(filename=outPath)
-	
-#Plot ConversionProb vs DeltaRent by propn of cropland
-#Plot log conversion prob against delta rents, by lcc
-p <- ggplot(subDat, aes(log(ConversionProb), DeltaRent, colour=PropCropland)) +
-p <- ggplot(subDat, aes(DeltaRent,log(ConversionProb), colour=PropCropland)) +
-	geom_point(size=1.5, alpha=0.8) +
+
+sgSubDat <- sgDat[sgDat$ConversionProb>0,]
+sgMod <- with(sgSubDat,glm(log(ConversionProb)~DeltaRent))
+summary(sgMod)
+plot(sgMod)
+
+p <- ggplot(sgSubDat, aes(DeltaRent,log(ConversionProb))) +
+	geom_point(size=1.5) +
+	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
 	theme_bw() + #get rid of grey bkg and gridlines
 	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
 	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
-	scale_colour_gradientn(name="Proportion of Cropland", colours=rainbow(5,start = 0.7, end = 0.9))+
-	theme(legend.position="bottom")
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
 	
-outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_PropCropland.png")
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_nozero.png")
 	ggsave(filename=outPath)
 
-ssubDat <- subDat[subDat$PropCropland>=0.01329,]
-ggplot(ssubDat, aes(DeltaRent,log(ConversionProb))) +
-	geom_point(size=1.5, alpha=0.8)
-summary(lm(log(ssubDat$ConversionProb+1)~ssubDat$DeltaRent+ssubDat$PropCropland+ssubDat$DeltaRent*ssubDat$PropCropland))
+
+################
+#Model of conversion probability predicted by proportion of cropland in county
+#Area of cropland in county in 2008 = CDL_2
+subDat3 <- subDat[subDat$LCC1to6_Total_Area_m2!=0,]
+
+PropCrop2008 <- with(subDat3, CDL_2/Total_Area_m2)
+#Conversion prob on LC1to6 land between 2008-2010
+Chng08to10 <- with(subDat3, LCC1to6_Converted_2009 + LCC1to6_Converted_2010)
+ConversionProb08to10 <- with(subDat3, Chng08to10/(CDL_1+Chng08to10))
+
+mod1 <- with(subDat3, glm(ConversionProb08to10~PropCrop2008)) #conversion prob
+summary(mod1)
+plot(mod1)
+
+#Predict conversion rates in 2010-12 using 2008-10 change
+PropCrop2010 <- with(subDat3, (CDL_2+LCC1to6_Converted_2009+LCC1to6_Converted_2010)/Total_Area_m2)
+Chng10to12 <- with(subDat3, LCC1to6_Converted_2011+LCC1to6_Converted_2012)
+ConversionProb10to12 <- with(subDat3, Chng10to12/(CDL_1+Chng10to12))
+
+mod1test <- predict(mod1, PropCrop2008=PropCrop2010)
+#calculate r2 on test prediction values
+SSE <- sum((PropCrop2010 - mod1test) ^ 2)
+SST <- sum((PropCrop2010 - mean(PropCrop2010)) ^ 2)
+R2 = 1 - SSE/SST
+R2
+
+plot(ConversionProb10to12~PropCrop2010)
+plot(mod1test~PropCrop2010, col='grey70',add=TRUE)
+
+rowSums(subDat3[PropCrop2010>1,c("CDL_2","LCC1to6_Converted_2009","LCC1to6_Converted_2010")])/subDat3[PropCrop2010>1,"Total_Area_m2"]
+
 	
 ##################
 #Make nice plots for ACR
@@ -275,12 +316,12 @@ plotDat <- reshape(subDat[,c("ADMIN_FIPS", "STATE", "STATE_FIPS", "NAME","Conver
 "ConversionProb_LCC7or8", "DeltaRent", "PropRent")], varying=c("ConversionProb_LCC1to6", 
 "ConversionProb_LCC7or8"), v.names="ConversionProb2", timevar="LCC", times=c("LCC1to6", "LCC7or8"), direction="long")
 #Plot log conversion prob against delta rents, by lcc
-p <- ggplot(plotDat, aes(log(ConversionProb2), DeltaRent, colour=LCC)) +
+p <- ggplot(plotDat, aes(DeltaRent,log(ConversionProb2), colour=LCC)) +
 	geom_point(size=1) +
 	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
 	theme_bw() + #get rid of grey bkg and gridlines
 	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-	labs(y="Non-irrigated cropland rent minus pasture rent", x="Log proportion of grassland converted to cropland 2008-2012")+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
 	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
 	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
 	scale_colour_discrete(name="Land capability class", labels=c("Suitable (1 to 6)", "Unsuitable (7 or 8)"))+
@@ -333,6 +374,7 @@ p <- ggplot(plotDat, aes(log(ConversionProb2), fill=LCC)) +
 outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProbLog.png")
 	ggsave(filename=outPath)
 	
+
 	
 	
 
@@ -623,4 +665,164 @@ mod4 <- lm(allDat$ConversionProb ~ poly(allDat$CDL_1, 2))
 plot(mod4) #terrible
 summary(mod4) #not significant
 
+##################
+#Plot population against land conversion
 
+modx <- lm(allDat$ConversionProb~log(allDat$respop72012))
+modx <- lm(log(allDat$ConversionProb+1)~allDat$respop72012)
+mody <- lm(log(allDat$ConversionProb+1)~log(allDat$respop72012)+allDat$DeltaRent)
+plot(lm(log(allDat$ConversionProb+1)~log(allDat$respop72012)))
+
+plot(allDat$respop72012, allDat$ConversionProb)
+plot(log(allDat$ConversionProb+1)~log(allDat$respop72012))
+plot(allDat$ConversionProb~log(allDat$respop72012))
+plot(log(allDat$ConversionProb+1)~allDat$respop72012)
+plot(allDat$PopnChg_2010_2012_Perc, allDat$ConversionProb)
+
+
+summary(allDat$PopnChg_2010_2012_Perc)
+quantile(allDat$PopnChg_2010_2012_Perc)
+library(binr)
+bins.quantiles(allDat$PopnChn_2012_2012_Perc)
+
+bins <- 3
+cutpoints <- quantile(subDat$PopnChg_2010_2012_Perc, (0:bins)/bins)
+binned <- cut(subDat$PopnChg_2010_2012_Perc, cutpoints, include.lowest=TRUE)
+subDat$PopnChngBin <- cut(subDat$PopnChg_2010_2012_Perc, cutpoints, include.lowest=TRUE)
+
+bins <- 3
+cutpoints <- quantile(subDat$respop72012, (0:bins)/bins)
+binned <- cut(subDat$respop72012, cutpoints, include.lowest=TRUE)
+subDat$PopnSizeBin <- cut(subDat$respop72012, cutpoints, include.lowest=TRUE)
+
+##################
+#Plot ConversionProb vs DeltaRent by popnchange
+#Plot log conversion prob against delta rents, by popnchange
+p <- ggplot(subDat, aes(DeltaRent, log(ConversionProb), colour=PopnChngBin)) +
+	geom_point(size=1.5, alpha=.8) +
+	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_colour_discrete(name="Population change 2010-2012", labels=c("Decrease (<0.77%)", "Stable (-0.77 to 0.72%)", "Increase (>0.72%)"))+
+	theme(legend.key=element_blank())#"none" gets rid of legend
+	
+	outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_popnchng.png")
+	ggsave(filename=outPath)
+	
+	
+	#Plot log conversion prob against delta rents, by popn size
+p <- ggplot(subDat, aes(DeltaRent, log(ConversionProb), colour=PopnSizeBin)) +
+	geom_point(size=1.5, alpha=.8) +
+	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_colour_discrete(name="Population 2012 (thousand)", labels=c("Low (<15.4)", "Mid (15.4 to 45.6)", "High (>4.56)"))+
+	theme(legend.position="bottom",legend.key=element_blank())#"none" gets rid of legend
+	
+		outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_popnsize.png")
+	ggsave(filename=outPath)
+	
+	
+	#Plot conversion prob against by popnchange
+p <- ggplot(subDat, aes(PopnChg_2010_2012_Perc, ConversionProb, colour=PopnChngBin)) +
+	geom_point(size=1.5, alpha=.8) +
+	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Population change 2010-2012", y="Proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_colour_discrete(name="", labels=c("Decrease (<0.77%)", "Stable (-0.77 to 0.72%)", "Increase (>0.72%)"))+
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
+	
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_PopnChange.png")
+	ggsave(filename=outPath)	
+	
+#Plot log conversion prob against by size of population
+p <- ggplot(subDat, aes(log(respop72012), ConversionProb, colour=PopnSizeBin)) +
+	geom_point(size=1.5, alpha=.8) +
+	#geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Log population size 2012", y="Proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_colour_discrete(name="Population (thousand) 2012", labels=c("Low (<15.4)", "Mid (15.4 to 45.6)", "High (>4.56)"))+
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
+	
+outPath <- paste0(dirname(outDir), "/figures/ConversionProb_vs_LogPopnSize.png")
+	ggsave(filename=outPath)
+
+plotDat <- reshape(subDat[,c("ADMIN_FIPS", "STATE", "STATE_FIPS", "NAME","ConversionProb_LCC1to6", 
+"ConversionProb_LCC7or8", "DeltaRent", "PropRent")], varying=c("ConversionProb_LCC1to6", 
+"ConversionProb_LCC7or8"), v.names="ConversionProb2", timevar="LCC", times=c("LCC1to6", "LCC7or8"), direction="long")
+#Histogram of log conversion prob by popn change
+p <- ggplot(plotDat, aes(log(ConversionProb2), fill=PopnChngBin)) +
+	geom_histogram(binwidth=0.25, alpha=.5, position="identity") +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Log proportion of grassland converted to cropland 2008-2012", y="Number of counties")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_fill_discrete(name="Population change 2010-2012", labels=c("Decrease (<0.77%)", "Stable (-0.77 to 0.72%)", "Increase (>0.72%)"))+
+	theme(legend.position="bottom", legend.key=element_blank())
+
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProbLog_PopnChange.png")
+	ggsave(filename=outPath)
+	
+#Histogram of log conversion prob by popn change
+p <- ggplot(subDat, aes(log(ConversionProb), fill=PopnChngBin)) +
+	geom_histogram(binwidth=0.25, alpha=.5, position="identity") +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Log proportion of grassland converted to cropland 2008-2012", y="Number of counties")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_fill_discrete(name="Population change 2010-2012", labels=c("Decrease (<0.77%)", "Stable (-0.77 to 0.72%)", "Increase (>0.72%)"))+
+	theme(legend.position="bottom", legend.key=element_blank())
+
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProbLog_PopnChange.png")
+	ggsave(filename=outPath)
+	
+#Histogram of log conversion prob by popn size
+p <- ggplot(subDat, aes(log(ConversionProb), fill=PopnSizeBin)) +
+	geom_histogram(binwidth=0.25, alpha=.5, position="identity") +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Log proportion of grassland converted to cropland 2008-2012", y="Number of counties")+
+	scale_x_continuous(expand = c(0.0, 0.0)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_fill_discrete(name="Population 2012 (thousands)", labels=c("Low (<15.4)", "Mid (15.4 to 45.6)", "High (>4.56)"))+
+	theme(legend.position="bottom", legend.key=element_blank())
+
+outPath <- paste0(dirname(outDir), "/figures/Histogram_ConversionProbLog_PopnChange.png")
+	ggsave(filename=outPath)
+
+
+	
+	
+#Plot ConversionProb vs DeltaRent by propn of cropland
+#Plot log conversion prob against delta rents, by lcc
+#p <- ggplot(subDat, aes(log(ConversionProb), DeltaRent, colour=PropCropland)) +
+p <- ggplot(subDat, aes(DeltaRent,log(ConversionProb), colour=PropCropland)) +
+	geom_point(size=1.5, alpha=0.8) +
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	scale_colour_gradientn(name="Proportion of Cropland", colours=rainbow(5,start = 0.7, end = 0.9))+
+	theme(legend.position="bottom")
+	
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_PropCropland.png")
+	ggsave(filename=outPath)
+
+ssubDat <- subDat[subDat$PropCropland>=0.01329,]
+ggplot(ssubDat, aes(DeltaRent,log(ConversionProb))) +
+	geom_point(size=1.5, alpha=0.8)
+summary(lm(log(ssubDat$ConversionProb+1)~ssubDat$DeltaRent+ssubDat$PropCropland+ssubDat$DeltaRent*ssubDat$PropCropland))
