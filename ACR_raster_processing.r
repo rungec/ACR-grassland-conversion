@@ -208,8 +208,15 @@ write.csv(allDat, paste0(outDir, "all data combined/LandConversion_combinedData_
 counties <- readOGR(dirname(countyDir), basename(countyDir), stringsAsFactors=FALSE)
 counties@data$ADMIN_FIPS <- as.numeric(counties@data$ADMIN_FIPS)
 counties@data <- sp::merge(counties@data, allDat, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE)
-writeOGR(counties, dsn=paste0(dirname(outDir), "/shps/all data combined"), "LandConversion_combinedData_allUSStates_lcc", driver="ESRI Shapefile")
+writeOGR(counties, dsn=paste0(dirname(outDir), "/shps/all data combined"), "LandConversion_combinedData_allUSStates_lcc", driver="ESRI Shapefile", overwrite=TRUE)
 
+
+###############
+#Check that year totals match the cross-year totals
+# notmatch1to6 <- allDat[which(allDat$LCC1to6_3 != rowSums(allDat[, c("LCC1to6_Converted_2009", "LCC1to6_Converted_2010", "LCC1to6_Converted_2011", "LCC1to6_Converted_2012")])),]
+# nrow(notmatch1to6)
+# notmatch7or8 <- allDat[which(allDat$LCC7or8_3 != rowSums(allDat[, c("LCC7or8_Converted_2009", "LCC7or8_Converted_2010", "LCC7or8_Converted_2011", "LCC7or8_Converted_2012")])),]
+# nrow(notmatch7or8)
 
 ###############
 #Clean up data
@@ -218,99 +225,102 @@ writeOGR(counties, dsn=paste0(dirname(outDir), "/shps/all data combined"), "Land
 subDat <- allDat[!is.na(allDat$DeltaRent) & !is.na(allDat$ConversionProb) & allDat$DeltaRent>=0, ]
 #subDat <- allDat[!is.na(allDat$DeltaRent) & allDat$DeltaRent>=0, ]
 
-ss2Dat <- subDat[subDat$ConversionProb_LCC1to6>0,]
-logConversionProb1to6 <- log(ss2Dat$ConversionProb_LCC1to6)
-allMod <- with(ss2Dat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))
 
-
-###############
-#Plot relationship between log Conversion & DeltaRent just for sage grouse counties
-sgCounties <- read.csv(sgCountyDir, stringsAsFactors=FALSE, header=TRUE)
-sgDat <- sp::merge(sgCounties, allDat, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE)
-write.csv(sgDat, paste0(outDir, "/all data combined/LandConversion_combinedData_sgCounties_lcc.csv"), row.names=FALSE)
-sgDat <- sgDat[!is.na(sgDat$DeltaRent) & !is.na(sgDat$ConversionProb) & sgDat$DeltaRent>=0, ]
-
-ZIFConversionProb1to6 <- log(sgDat$ConversionProb_LCC1to6+1)
-
-subsgDat <- sgDat[sgDat$ConversionProb_LCC1to6>0,]
-logConversionProb1to6 <- log(subsgDat$ConversionProb_LCC1to6)
-
-sgDat$ZIFConversionProb <- with(sgDat, log(ConversionProb+1))
-sgMod <- with(sgDat,glm(ZIFConversionProb~DeltaRent))
-sgMod <- with(sgDat, glm(ZIFConversionProb~DeltaRent*log(respop72012)*PropCropland))
-sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland))
-sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland)) #remove zero conversion
-sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland)) #remove zero conversion #SIGNFICANT DELTA RENT!!!!
-#next step try a mixed model with LCC as a factor
-summary(sgMod)
-plot(sgMod)
-
-p <- ggplot(sgDat, aes(DeltaRent,ZIFConversionProb)) +
-	geom_point(size=1.5) +
-	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
-	theme_bw() + #get rid of grey bkg and gridlines
-	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-	labs(x="Non-irrigated cropland rent minus pasture rent", y="ZIF Log proportion of grassland converted to cropland 2008-2012")+
-	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
-	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
-	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
-	
-outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_ZIF.png")
-	ggsave(filename=outPath)
-
-sgSubDat <- sgDat[sgDat$ConversionProb>0,]
-sgMod <- with(sgSubDat,glm(log(ConversionProb)~DeltaRent))
-summary(sgMod)
-plot(sgMod)
-
-p <- ggplot(sgSubDat, aes(DeltaRent,log(ConversionProb))) +
-	geom_point(size=1.5) +
-	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
-	theme_bw() + #get rid of grey bkg and gridlines
-	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
-	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
-	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
-	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
-	
-outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_nozero.png")
-	ggsave(filename=outPath)
 
 
 ################
-#Model of conversion probability predicted by proportion of cropland in county
-#Area of cropland in county in 2008 = CDL_2
-subDat3 <- subDat[subDat$LCC1to6_Total_Area_m2!=0,]
+#Model of conversion probability for LCC1to6 predicted by proportion of cropland in county
 
-PropCrop2008 <- with(subDat3, CDL_2/Total_Area_m2)
-#Conversion prob on LC1to6 land between 2008-2010
-Chng08to10 <- with(subDat3, LCC1to6_Converted_2009 + LCC1to6_Converted_2010)
-ConversionProb08to10 <- with(subDat3, Chng08to10/(CDL_1+Chng08to10))
+###Set up data
+	
+	subDat1to6 <- subDat[subDat$LCC1to6_Total_Area_m2!=0 & (subDat$LCC1to6_3+subDat$LCC1to6_2)>0,] #pull out only counties containing LCC1to6, and with some cropland
+	#subDat1to6 <- subDat[subDat$LCC1to6_Total_Area_m2!=0,] #pull out only counties containing LCC1to6  #Area of cropland in county in 2008 = CDL_2
 
-mod1 <- with(subDat3, glm(ConversionProb08to10~PropCrop2008)) #conversion prob
-summary(mod1)
-plot(mod1)
+	PropCrop2008 <- with(subDat1to6, CDL_2/Total_Area_m2) #proportion of area that is cropland in 2008
+	#Conversion prob on LC1to6 land between 2008-2010
+	Chng08to10 <- with(subDat1to6, LCC1to6_Converted_2009 + LCC1to6_Converted_2010)
+	ConversionProb08to10 <- with(subDat1to6, Chng08to10/(CDL_1+Chng08to10))
+	PropCrop2010 <- with(subDat1to6, (CDL_2+LCC1to6_Converted_2009+LCC1to6_Converted_2010)/Total_Area_m2) #proportion of area that is cropland in 2010
+	#Conversion prob on LC1to6 land between 2010-12
+	Chng10to12 <- with(subDat1to6, LCC1to6_Converted_2011+LCC1to6_Converted_2012)
+	ConversionProb10to12 <- with(subDat1to6, Chng10to12/(CDL_1+Chng10to12))
 
-#Predict conversion rates in 2010-12 using 2008-10 change
-PropCrop2010 <- with(subDat3, (CDL_2+LCC1to6_Converted_2009+LCC1to6_Converted_2010)/Total_Area_m2)
-Chng10to12 <- with(subDat3, LCC1to6_Converted_2011+LCC1to6_Converted_2012)
-ConversionProb10to12 <- with(subDat3, Chng10to12/(CDL_1+Chng10to12))
+###Model
+	mod1 <- with(subDat1to6, lm(ConversionProb08to10~PropCrop2008)) #based on 2008-10 conversion prob
+	summary(mod1)
+	plot(mod1)	
+	mod2 <- with(subDat1to6, lm(ConversionProb10to12~PropCrop2010)) #based on 2010-12 conversion prob
+	summary(mod2)
+	plot(mod2)
 
-mod1test <- predict(mod1, PropCrop2008=PropCrop2010)
-#calculate r2 on test prediction values
-SSE <- sum((PropCrop2010 - mod1test) ^ 2)
-SST <- sum((PropCrop2010 - mean(PropCrop2010)) ^ 2)
-R2 = 1 - SSE/SST
-R2
+###Predict conversion rates in 2010-12 using 2008-10 change
+	mod1test <- predict.lm(mod1, newdata=data.frame(PropCrop2010), interval="prediction")
+	mod2test <- predict.lm(mod2, newdata=data.frame(PropCrop2008), interval="prediction")
 
-plot(ConversionProb10to12~PropCrop2010)
-plot(mod1test~PropCrop2010, col='grey70',add=TRUE)
 
-rowSums(subDat3[PropCrop2010>1,c("CDL_2","LCC1to6_Converted_2009","LCC1to6_Converted_2010")])/subDat3[PropCrop2010>1,"Total_Area_m2"]
+###Plot model
+
+#set up data for ggplot
+plotDat1to6 <- data.frame(PropCrop=append(PropCrop2008, PropCrop2010), ConversionProb=append(ConversionProb08to10, ConversionProb10to12), rbind(mod2test, mod1test), year=rep(c(2008, 2010), each=length(PropCrop2008)))
+plotDat1to6$lwr[plotDat1to6$lwr<0] <- 0 #set lower confidence limit to zero
+
+
+#Plot conversion prob 2008-10 vs 2010-12 against proportion cropland
+p <- ggplot(plotDat1to6, aes(PropCrop, ConversionProb, colour=as.factor(year))) +
+	geom_point(size=1.5) +
+	geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="black", linetype=1)+ #add trendline
+	geom_abline(coefficients(mod2)[[1]][1], slope=coefficients(mod2)[[2]][1], colour="black", linetype=2)+ #add trendline
+	annotate("text", x=0.4, y=c(0.18, 0.17), label= c(paste0("2008-10 model y = ",round(coefficients(mod1)[[2]][1],3),"x + ", round(coefficients(mod1)[[1]][1],4)), paste0("2010-12 model y = ",round(coefficients(mod2)[[2]][1], 3),"x + ", round(coefficients(mod2)[[1]][1], 4))), fontface=3, vjust=0.5) +
+	annotate("segment", x=0.05, xend=0.15, y=c(0.18, 0.17), yend=c(0.18, 0.17), colour="black", linetype=c(1,2))+
+	#annotate("text", x=0, y=c(0.18, 0.16), label= c("2008", "2010")) +
+	theme_bw(17) + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Proportion of cropland in county", y="Proportion of grassland converted to cropland")+
+	scale_x_continuous(expand = c(0.05, 0.05)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	scale_colour_discrete(name="Year", labels=c("2008-10", "2010-12"))+
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="bottom", legend.key=element_blank())
+
+	outPath <- paste0(dirname(outDir), "/figures/Year_ConversionProb_vs_ProportionCropland_LCC1to6_withtrendline.png")
+	ggsave(filename=outPath)
+
+#Plot conversion prob 2008-10 against proportion cropland with model trendline
+p <- ggplot(plotDat1to6[plotDat1to6$year==2008,], aes(PropCrop, ConversionProb)) +
+	geom_point(size=1.5, colour="grey60") +
+	geom_abline(coefficients(mod1)[[1]][1], slope=coefficients(mod1)[[2]][1], colour="red")+ #add trendline
+	theme_bw(17) + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Proportion of cropland in county 2008", y="Proportion of grassland converted to cropland 2008-2010")+
+	scale_x_continuous(expand = c(0.05, 0.05)) + scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))	#move xylabels away from graph
+	
+	outPath <- paste0(dirname(outDir), "/figures/Year_ConversionProb_vs_ProportionCropland_LCC1to6_2008model.png")
+	ggsave(filename=outPath)
+	
+#Plot conversion prob 2010-12 predictions against actual
+p <- ggplot(plotDat1to6[plotDat1to6$year==2010,], aes(fit, ConversionProb)) +
+	geom_ribbon(aes(ymin=lwr,ymax=upr),fill = "gray80", colour="gray80")+ #confidence intervals
+	geom_point(size=1.5, colour="black") +
+	geom_abline(intercept=0, slope=1, colour="red")+
+	theme_light(17) + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Predicted grassland conversion 2010-2012", y="Actual grassland conversion 2010-2012")+
+	#scale_x_continuous(limits=c(0, 0.125)) + 
+	#scale_y_continuous(limits=c(0, 0.125))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(axis.title.y = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))	#move xylabels away from graph
+	
+	outPath <- paste0(dirname(outDir), "/figures/Year_ConversionProb_vs_ProportionCropland_LCC1to6_modelpredictionsfor2010.png")
+	ggsave(filename=outPath)
 
 	
+	
+	
+	
+	
+	
 ##################
-#Make nice plots for ACR
+#Make nice summary plots for ACR
 
 plotDat <- reshape(subDat[,c("ADMIN_FIPS", "STATE", "STATE_FIPS", "NAME","ConversionProb_LCC1to6", 
 "ConversionProb_LCC7or8", "DeltaRent", "PropRent")], varying=c("ConversionProb_LCC1to6", 
@@ -826,3 +836,64 @@ ssubDat <- subDat[subDat$PropCropland>=0.01329,]
 ggplot(ssubDat, aes(DeltaRent,log(ConversionProb))) +
 	geom_point(size=1.5, alpha=0.8)
 summary(lm(log(ssubDat$ConversionProb+1)~ssubDat$DeltaRent+ssubDat$PropCropland+ssubDat$DeltaRent*ssubDat$PropCropland))
+
+
+
+
+ss2Dat <- subDat[subDat$ConversionProb_LCC1to6>0,]
+logConversionProb1to6 <- log(ss2Dat$ConversionProb_LCC1to6)
+allMod <- with(ss2Dat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))
+
+
+###############
+#Plot relationship between log Conversion & DeltaRent just for sage grouse counties
+sgCounties <- read.csv(sgCountyDir, stringsAsFactors=FALSE, header=TRUE)
+sgDat <- sp::merge(sgCounties, allDat, by.x="ADMIN_FIPS", by.y="ADMIN_FIPS", all.x=TRUE)
+write.csv(sgDat, paste0(outDir, "/all data combined/LandConversion_combinedData_sgCounties_lcc.csv"), row.names=FALSE)
+sgDat <- sgDat[!is.na(sgDat$DeltaRent) & !is.na(sgDat$ConversionProb) & sgDat$DeltaRent>=0, ]
+
+ZIFConversionProb1to6 <- log(sgDat$ConversionProb_LCC1to6+1)
+
+subsgDat <- sgDat[sgDat$ConversionProb_LCC1to6>0,]
+logConversionProb1to6 <- log(subsgDat$ConversionProb_LCC1to6)
+
+sgDat$ZIFConversionProb <- with(sgDat, log(ConversionProb+1))
+sgMod <- with(sgDat,glm(ZIFConversionProb~DeltaRent))
+sgMod <- with(sgDat, glm(ZIFConversionProb~DeltaRent*log(respop72012)*PropCropland))
+sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland))
+sgMod <- with(sgDat, glm(ZIFConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland))sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent*log(respop72012)*LCC1to6_PropCropland)) #remove zero conversion
+sgMod <- with(subsgDat, glm(logConversionProb1to6~DeltaRent+log(respop72012)+LCC1to6_PropCropland)) #remove zero conversion #SIGNFICANT DELTA RENT!!!!
+#next step try a mixed model with LCC as a factor
+summary(sgMod)
+plot(sgMod)
+
+p <- ggplot(sgDat, aes(DeltaRent,ZIFConversionProb)) +
+	geom_point(size=1.5) +
+	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="ZIF Log proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
+	
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_ZIF.png")
+	ggsave(filename=outPath)
+
+sgSubDat <- sgDat[sgDat$ConversionProb>0,]
+sgMod <- with(sgSubDat,glm(log(ConversionProb)~DeltaRent))
+summary(sgMod)
+plot(sgMod)
+
+p <- ggplot(sgSubDat, aes(DeltaRent,log(ConversionProb))) +
+	geom_point(size=1.5) +
+	geom_abline(coefficients(sgMod)[[1]][1], slope=coefficients(sgMod)[[2]][1], colour="red")+ #add trendline
+	theme_bw() + #get rid of grey bkg and gridlines
+	theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+	labs(x="Non-irrigated cropland rent minus pasture rent", y="Log proportion of grassland converted to cropland 2008-2012")+
+	#scale_x_continuous(expand = c(0.05, 0.05), limits=c(0, max(subDat$DeltaRent))) + #scale_y_continuous(expand = c(0.01, 0.001))+ #set x and y limits
+	theme(axis.title.x = element_text(vjust=-0.6),axis.title.y = element_text(vjust=1))+	#move xylabels away from graph
+	theme(legend.position="bottom", legend.key=element_blank())#"none" gets rid of legend
+	
+outPath <- paste0(dirname(outDir), "/figures/ConversionProbLog_vs_DeltaRents_SGCounties_nozero.png")
+	ggsave(filename=outPath)
