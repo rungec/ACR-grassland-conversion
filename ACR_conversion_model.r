@@ -24,7 +24,10 @@ names(allCountiesDF)[which(names(allCountiesDF)=="Acres.of.Irrigated.Harvested.C
 allCountiesDF$PercentCroplandIrrigated[is.na(allCountiesDF$PercentCroplandIrrigated)] <- 0
 
 #NEED TO SUMMARISE DATA by 1,2,3,4 year averages
+exclude from your analysis: - false conversion
 
+18087  Lagrange, IN
+48249  Jim Wells, TX
 ########################
 #CHECK CORRELATION OF VARIABLES
 ########################
