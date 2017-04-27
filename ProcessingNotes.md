@@ -199,3 +199,9 @@ attributes  :
 176=grass/pasture
 190=woody wetlands
 195=herbaceous wetlands
+
+## Area of CRP expiring each yera
+from https://www.fsa.usda.gov/programs-and-services/conservation-programs/reports-and-statistics/conservation-reserve-program-statistics/index table at bottom of page. We used the last column in this table *acres that Left CRP*, to estimate the maximum acres of recent conversion that could have come from CRP vs any other source (e.g. pasture).  Based on footnote "e" and timing of our conversion detection, the final year of data in that spreadsheet, sheet "2014", which has land exiting in Fall 2013, would be best associated as a predictor for conversion in year 2014 of our data.
+
+
+
