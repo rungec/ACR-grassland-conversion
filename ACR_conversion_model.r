@@ -35,16 +35,22 @@ dev.off()
 ########################
 #SET UP MODEL FUNCTION
 ########################
+#Generalized linear model with binomial - logit link
 modelfun <- function(currname, trainingdata, testdata){
 	
-	mod1 <- with(trainingdata, ConversionPropCropRangeforACR ~ percCrop + percCrop^2 + urban + areaCRPexpires + popn) #full model
-	mod2 <- with(trainingdata, ConversionPropCropRangeforACR ~ percCrop + urban + areaCRPexpires + popn) #without saturating function
-	mod3 <- with(trainingdata, ConversionPropCropRangeforACR ~ percCrop + percCrop^2 + urban + areaCRPexpires ) #without population
-	mod4 <- with(trainingdata, ConversionPropCropRangeforACR ~ percCrop + percCrop^2 + areaCRPexpires + popn) #without urban
-	mod5 <- with(trainingdata, ConversionPropCropRangeforACR ~ percCrop + percCrop^2 + urban + popn) #without CRP
-	mod6 <- with(trainingdata, ConversionPropCropRangeforACR ~ areaCRPexpires + urban + popn) #without percentcrop
+	#drop county-years with no conversion, and no land in that LCC
+	trainingdata <- subset(trainingdata, ConversionPropCropRangeforACR>0 & !is.na(PercentArea_Crop) )
+		
+	mod1 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + I(PercentArea_Crop^2) + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #full model
+	mod2 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without crop saturating function
+	mod3 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP, family='binomial')) #without population
+	mod4 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without urban
+	mod5 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + AREAPCT_URBAN^2 + log(abs(Popn_Chg)+1), family='binomial')) #without CRP
+	mod6 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ AREAPCT_URBAN + AREAPCT_URBAN^2 + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without percentcrop
+	mod7 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without urban saturating function
+	mod8 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2, family='binomial')) #parsimonious
 
-	models <- list(mod1=mod1, mod2=mod2, mod3=mod3, mod4=mod4, mod5=mod5, mod6=mod6)
+	models <- list(mod1=mod1, mod2=mod2, mod3=mod3, mod4=mod4, mod5=mod5, mod6=mod6, mod7=mod7, mod8=mod8)
 	save(models, file = sprintf("model output/Models_%s.rda", currname))
 	#load("my_model1.rda") #to open
 	
@@ -84,6 +90,10 @@ modelfun <- function(currname, trainingdata, testdata){
 	write.csv(prediction_accuracy, filename=sprintf("model output/Prediction_accuracy_%s.rda", currname))
 	return(prediction_accuracy)
 }
+
+
+#https://stats.stackexchange.com/questions/55692/back-transformation-of-an-mlr-model
+#http://www.magesblog.com/2015/08/generalised-linear-models-in-r.html
 
 ########################
 #PREDICT and TEST MODELS
