@@ -138,6 +138,8 @@ CropRangeLCCLong <- rbind(with(CropRangeDF,
 ##########################
 setwd("Y:/Data/NCEAS_Postdoc/P4 ACR revised methods/")
 CropRangeLCCLong$PercentArea_Crop <- with(CropRangeLCCLong, Area_cropland/TotalRangeorCropAreainLCC_ha)	
+CropRangeLCCLong[CropRangeLCCLong$Area_cropland==0, "PercentArea_Crop"] <- 0 #0 where there is no cropland in that county
+CropRangeLCCLong[is.na(CropRangeLCCLong$Area_cropland), "PercentArea_Crop"] <- 0 #0 where there is cropland is NA in that county
 CropRangeLCCLong[CropRangeLCCLong$TotalRangeorCropAreainLCC_ha==0, "PercentArea_Crop"] <- NA #NA where there is no land in that LCC category in that county
 
 CropRangeLCCLong$ConversionPropCropRangeforACR <- with(CropRangeLCCLong, Area_Ranget0_to_Cropt1/Area_Ranget0)
@@ -152,6 +154,8 @@ controlVariablesDF <- CropRangeLCCLong
 #1. Add Area of CRP expiring in previous year
 CRP <- read.csv("Data/CPR_acres_expiring_byYear/AcresleavingCRP_byCountyandYear.csv")
 controlVariablesDF <- merge(controlVariablesDF, CRP, by=c("ADMIN_FIPS","Year"), all.x=TRUE)
+controlVariablesDF$PercRange_left_CRP <- with(controlVariablesDF, Acres_left_CRP*0.404686/Area_Ranget0)
+controlVariablesDF$PercRange_left_CRP[is.infinite(controlVariablesDF$PercRange_left_CRP)] <- 0
 #"2014", which has land exiting in Fall 2013, is associated as a predictor for conversion in year 2014 of our data 
 
 ###Time-varying
@@ -194,6 +198,7 @@ controlVariablesDF <- merge(controlVariablesDF, urbanDF[,c("ADMIN_FIPS","AREA_UR
 ######################
 #Merge CONTROL VARIABLES with RESPONSE VARIABLES
 #####################
+controlVariablesDF$PercentCroplandthatisIrrigated[is.na(controlVariablesDF$PercentCroplandthatisIrrigated)] <- 0
 write.csv(controlVariablesDF, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables.csv"), row.names=FALSE)
 
 ######################
@@ -240,6 +245,8 @@ twoYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, TwoyrAverage), sum
 		)
 twoYearMeans$ConversionPropCropRangeforACR <- with(twoYearMeans, Area_Ranget0_to_Cropt1/Area_Ranget0)
 twoYearMeans$Popn_Chg_Perc <- with(twoYearMeans, Popn_Chg/Popn)
+twoYearMeans$PercRange_left_CRP <- with(twoYearMeans, Acres_left_CRP*0.404686/Area_Ranget0)
+twoYearMeans$PercRange_left_CRP[is.infinite(twoYearMeans$PercRange_left_CRP)] <- 0
 write.csv(twoYearMeans, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_2yraverages.csv"), row.names=FALSE)
 
 
@@ -261,6 +268,8 @@ threeYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, TwoyrAverage), s
 		)
 threeYearMeans$ConversionPropCropRangeforACR <- with(threeYearMeans, Area_Ranget0_to_Cropt1/Area_Ranget0)
 threeYearMeans$Popn_Chg_Perc <- with(threeYearMeans, Popn_Chg/Popn)
+threeYearMeans$PercRange_left_CRP <- with(threeYearMeans, Acres_left_CRP*0.404686/Area_Ranget0)
+threeYearMeans$PercRange_left_CRP[is.infinite(threeYearMeans$PercRange_left_CRP)] <- 0
 write.csv(threeYearMeans, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_3yraverages.csv"), row.names=FALSE)
 
 #FOUR Year lags		
@@ -281,6 +290,8 @@ fourYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, TwoyrAverage), su
 		)
 fourYearMeans$ConversionPropCropRangeforACR <- with(fourYearMeans, Area_Ranget0_to_Cropt1/Area_Ranget0)
 fourYearMeans$Popn_Chg_Perc <- with(fourYearMeans, Popn_Chg/Popn)
+fourYearMeans$PercRange_left_CRP <- with(fourYearMeans, Acres_left_CRP*0.404686/Area_Ranget0)
+fourYearMeans$PercRange_left_CRP[is.infinite(fourYearMeans$PercRange_left_CRP)] <- 0
 write.csv(fourYearMeans, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_4yraverages.csv"), row.names=FALSE)
 
 ###########################
