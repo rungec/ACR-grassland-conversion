@@ -1,10 +1,8 @@
 
-library(MASS) #for boxcox, stepAIC and rlm
-library(glmulti) #for glmulti
-library(MuMIn) #for AICc
 library(plyr) #for ddply
 library(ggplot2)
-library(gridExtra)#for grid.arrange
+library(randomForest)
+library(rUtilities)
 
 options(stringsAsFactors=FALSE) # turn off automatic factor coersion
 
@@ -20,6 +18,7 @@ twoyrlag <- read.csv("tables/all data combined/LandConversion_combinedData_allUS
 threeyrlag <- read.csv("tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_3yraverages.csv")
 fouryrlag <- read.csv("tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_4yraverages.csv")
 
+vars <- c("State", "TotalRangeorCropAreainLCC_ha", "Area_Ranget0", "Area_cropland", "PercentArea_Crop","PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "AREA_URBAN_ha", "AREAPCT_URBAN")
 
 ########################
 #CHECK CORRELATION OF VARIABLES
@@ -38,62 +37,73 @@ dev.off()
 #Generalized linear model with binomial - logit link
 modelfun <- function(currname, trainingdata, testdata){
 	
-	#drop county-years with no conversion, and no land in that LCC
-	trainingdata <- subset(trainingdata, ConversionPropCropRangeforACR>0 & !is.na(PercentArea_Crop) )
-		
-	mod1 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + I(PercentArea_Crop^2) + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #full model
-	mod2 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without crop saturating function
-	mod3 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + I(AREAPCT_URBAN^2) + PercRange_left_CRP, family='binomial')) #without population
-	mod4 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without urban
-	mod5 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + AREAPCT_URBAN^2 + log(abs(Popn_Chg)+1), family='binomial')) #without CRP
-	mod6 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ AREAPCT_URBAN + AREAPCT_URBAN^2 + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without percentcrop
-	mod7 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2 + AREAPCT_URBAN + PercRange_left_CRP + log(abs(Popn_Chg)+1), family='binomial')) #without urban saturating function
-	mod8 <- with(trainingdata, glm(ConversionPropCropRangeforACR ~ PercentArea_Crop + PercentArea_Crop^2, family='binomial')) #parsimonious
-
-	models <- list(mod1=mod1, mod2=mod2, mod3=mod3, mod4=mod4, mod5=mod5, mod6=mod6, mod7=mod7, mod8=mod8)
-	save(models, file = sprintf("model output/Models_%s.rda", currname))
+	vars <- c("State", "TotalRangeorCropAreainLCC_ha", "Area_Ranget0", "Area_cropland", "PercentArea_Crop","PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "AREA_URBAN_ha", "AREAPCT_URBAN")
+	#Set up training data
+	trainingdata <- trainingdata[, c("ConversionPropCropRangeforACR", vars)]
+	trainingdata <- trainingdata[complete.cases(trainingdata),]
+	trainingdata$State <- as.factor(trainingdata$State)
+	#trainingdata$Year <- as.factor(trainingdata$Year)
+	
+	#Set up test data
+	#testdata <- testdata[,c("ADMIN_FIPS", "ConversionPropCropRangeforACR", vars)]
+	#testdata <- testdata[complete.cases(testdata),]
+	testdata$State <- as.factor(testdata$State)
+	#testdata$Year <- as.factor(testdata$Year)
+	
+	#run random forest
+	set.seed(415)
+	#rfmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=500, importance=TRUE, do.trace=100)
+	rfmod <- rf.modelSel(x=trainingdata[,vars], y=trainingdata$ConversionPropCropRangeforACR, imp.scale='mir', ntree=500)
+	save(rfmod, file = sprintf("model output/RandomForestModel_%s.rda", currname))
 	#load("my_model1.rda") #to open
 	
-	# #How well do the models perform
-	unlist(lapply(models, function(x) AICc(x)))
-	unlist(lapply(models, function(x) BIC(x)))
-	anova(models) 
-
+	#variable importance
+	png(filename=sprintf("model output/Plot_randomforestvariableimportance_%s.png", currname), width=1240, height=670)
+		p <- as.matrix(rfmod$importance[,3])   
+		ord <- rev(order(p[,1], decreasing=TRUE)[1:dim(p)[1]]) 
+		dotchart(p[ord,1], main="Scaled Variable Importance", pch=19)
+	dev.off()
+	
+	#predict conversion
+	testdata$predicted_conversion <- predict(rfmod, testdata)
+	write.csv(testdata, sprintf("model output/ModelPredictions_%s.csv", currname), row.names=FALSE)
+	
+	#How well do the models perform
+	#test of performance against random
+	 rf.perm <- rf.significance(rfmod, trainingdata[, vars], nperm = 99, ntree = 1001)
+	 #regression fit
+	 rf.regfit <- rf.regression.fit(rfmod)
+	 
 	#save model summaries to a text file
-	sink(sprintf("model output/Summaryofcandidatemodels_%s.txt", currname))
-	for (i in seq_along(models)){
-		print(names(models)[[i]])
-		print(summary(models[[i]]))
-		print(paste("AIC", names(models)[[i]], round(AICc(models[[i]]), 2), sep=" "))
-		print(paste("BIC", names(models)[[i]], round(BIC(models[[i]]), 2), sep=" "))
-		print(anova(models))#only if models are sbusets of each other
-		}
+	sink(sprintf("model output/Summary_randomforestmodel_%s.txt", currname))
+		print(rf.perm)
+		print(rf.regfit)
 	sink()
 
-	predicted_conversion <- lapply(models, function(x) {
-		preds <- predict(x, testdata, type="response")
-		return(preds)
-	}
-	save(predicted_conversion, file = sprintf("model output/Predicted_conversion_%s.rda", currname))
-	
+
 	#How well do the models predict future conversion
-	prediction_accuracy <- unlist(lapply(predicted_conversion, function(i) {
-		# MeanAbsolutePercentageError (MAPE)=mean(abs(predicteds-actuals)/actuals) #http://r-statistics.co/Linear-Regression.html
-		mape <- mean(abs((i - testdata$ConversionPropCropRangeforACR))/testdata$ConversionPropCropRangeforACR)  
-		# mean absolute percentage deviation
+	# MeanAbsolutePercentageError (MAPE)=mean(abs(predicteds-actuals)/actuals) 
+		#http://r-statistics.co/Linear-Regression.html
+		mape <- with(testdata, mean(abs((predicted_conversion - ConversionPropCropRangeforACR))/ConversionPropCropRangeforACR))  
+	# mean absolute percentage deviation
 		#Pearson's correlation
-		pcor <- cor(i, testdata$ConversionPropCropRangeforACR)
-		#R-squared
-		rsq <- 1-sum((testdata$ConversionPropCropRangeforACR-i)^2)/sum((testdata$ConversionPropCropRangeforACR-mean(testdata$ConversionPropCropRangeforACR))^2)
-		return(data.frame(mape, pcor, rsq))
-	}
+		pcor <- with(testdata, cor(predicted_conversion, ConversionPropCropRangeforACR))
+	#R-squared
+		rsq <- with(testdata, 1-sum((ConversionPropCropRangeforACR-i)^2)/sum((ConversionPropCropRangeforACR-mean(ConversionPropCropRangeforACR))^2))
+	prediction_accuracy <- data.frame(mape, pcor, rsq)
 	write.csv(prediction_accuracy, filename=sprintf("model output/Prediction_accuracy_%s.rda", currname))
-	return(prediction_accuracy)
+	
+	#plot predicted against actual
+	png(filename=sprintf("model output/Plot_predicted_vs_actual_%s.png", currname), width=670, height=670)
+	p <- ggplot(testdata, aes(x=ConversionPropCropRangeforACR, y=predicted_conversion) +
+		geom_point() +
+		geom_abline(color="red") +
+		ggtitle(paste("RandomForest Regression in R r^2=", r2, sep=""))
+	print(p)
+	dev.off()	
 }
 
-
-#https://stats.stackexchange.com/questions/55692/back-transformation-of-an-mlr-model
-#http://www.magesblog.com/2015/08/generalised-linear-models-in-r.html
+#http://evansmurphy.wixsite.com/evansspatial/random-forest-sdm
 
 ########################
 #PREDICT and TEST MODELS
