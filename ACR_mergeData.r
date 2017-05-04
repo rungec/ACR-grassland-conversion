@@ -251,7 +251,7 @@ write.csv(twoYearMeans, paste0(getwd(), "/Analysis/tables/all data combined/Land
 
 
 #THREE Year lags		
-threeYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, TwoyrAverage), summarize,
+threeYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, ThreeyrAverage), summarize,
 		TotalRangeorCropAreainLCC_ha = round(mean(TotalRangeorCropAreainLCC_ha, na.rm=TRUE), 2),
 		Area_Ranget0_to_Cropt1 = sum(Area_Ranget0_to_Cropt1, na.rm=TRUE),
 		Area_cropland = round(mean(Area_cropland, na.rm=TRUE), 2),
@@ -273,7 +273,7 @@ threeYearMeans$PercRange_left_CRP[is.infinite(threeYearMeans$PercRange_left_CRP)
 write.csv(threeYearMeans, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables_3yraverages.csv"), row.names=FALSE)
 
 #FOUR Year lags		
-fourYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, TwoyrAverage), summarize,
+fourYearMeans <-  ddply(controlVariablesDF, .(ADMIN_FIPS, LCC, FouryrAverage), summarize,
 		TotalRangeorCropAreainLCC_ha = round(mean(TotalRangeorCropAreainLCC_ha, na.rm=TRUE), 2),
 		Area_Ranget0_to_Cropt1 = sum(Area_Ranget0_to_Cropt1, na.rm=TRUE),
 		Area_cropland = round(mean(Area_cropland, na.rm=TRUE), 2),
