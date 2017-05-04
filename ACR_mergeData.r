@@ -205,9 +205,9 @@ write.csv(controlVariablesDF, paste0(getwd(), "/Analysis/tables/all data combine
 #Set up TIME LAGGED DATASETs
 #####################
 #using one year to predict the next year, two-year averages to predict subsequent two-year averages, three-year averages to predict subsequent three-year averages, and four-year averages to predict subsequent four-year averages
-
+ #controlVariablesDF <- read.csv("/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables.csv", header=TRUE)
 controlVariablesDF$TwoyrAverage <- sapply(controlVariablesDF$Year, function(x){
-if(x %% 2 ==0){
+if(x %% 2 !=0){
 		as.character(x) 
 		} else { as.character(x-1)
 		}})

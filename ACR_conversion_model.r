@@ -41,12 +41,12 @@ png(filename="model_output/figures/Conversion_2008to2011_vs_2012to2015.png", wid
 	plot(x=fouryrlag[fouryrlag$FouryrAverage=="2008_2011", "ConversionPropCropRangeforACR"], y=fouryrlag[fouryrlag$FouryrAverage=="2012_2015", "ConversionPropCropRangeforACR"], xlab="Conversion 2008 to 2011", ylab="Conversion 2012 to 2015")
 dev.off()
 
-#2010 to 2011 against 2014 to 2015
-cors <- cor(x=twoyrlag[twoyrlag$TwoyrAverage=="2010", "ConversionPropCropRangeforACR"], y=twoyrlag[twoyrlag$TwoyrAverage=="2014", "ConversionPropCropRangeforACR"], method="pearson", use="complete.obs")
+#2009 to 2010 against 2013 to 2014
+cors <- cor(x=twoyrlag[twoyrlag$TwoyrAverage=="2009", "ConversionPropCropRangeforACR"], y=twoyrlag[twoyrlag$TwoyrAverage=="2013", "ConversionPropCropRangeforACR"], method="pearson", use="complete.obs")
 print(cors)
 
-png(filename="model_output/figures/Conversion_2010to2011_vs_2014to2015.png", width=670, height=670)
-	plot(x=twoyrlag[twoyrlag$TwoyrAverage=="2010", "ConversionPropCropRangeforACR"], y=twoyrlag[twoyrlag$TwoyrAverage=="2014", "ConversionPropCropRangeforACR"], xlab="Conversion 2010 to 2011", ylab="Conversion 2014 to 2015")
+png(filename="model_output/figures/Conversion_2009to2010_vs_2013to2014.png", width=670, height=670)
+	plot(x=twoyrlag[twoyrlag$TwoyrAverage=="2009", "ConversionPropCropRangeforACR"], y=twoyrlag[twoyrlag$TwoyrAverage=="2013", "ConversionPropCropRangeforACR"], xlab="Conversion 2009 to 2010", ylab="Conversion 2013 to 2014")
 dev.off()
 
 
@@ -111,7 +111,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	
 	#How well do the models perform
 	#test of performance against random
-	 rf.perm <- rf.significance(rfmod, trainingdata[, vars], nperm = 99, ntree = 1001)
+	 rf.perm <- rf.significance(rfmod, trainingdata[, vars], nperm = 1000, ntree = 1001)
 	 #regression fit
 	 rf.regfit <- rf.regression.fit(rfmod)
 
