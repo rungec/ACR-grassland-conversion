@@ -7,11 +7,12 @@ library(rfUtilities)
 #library(ICEbox) #for ice partial dependency plots
 library(rgl) #for nmds 3 plots
 #library(ggRandomForests)
+library(parallel)
 
 
 options(stringsAsFactors=FALSE) # turn off automatic factor coersion
 
-wd <- "Y:/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis"
+#wd <- "Y:/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis"
 wd <- "/home/runge/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis/"
 setwd(wd)
 
@@ -65,19 +66,34 @@ modelfun <- function(currname, trainingdata, testdata){
 	trainingdata <- trainingdata[complete.cases(trainingdata),]
 	#trainingdata$State <- as.factor(trainingdata$State)
 	#trainingdata$Year <- as.factor(trainingdata$Year)
-	
+	x <- trainingdata[,vars]
+	y <- trainingdata$ConversionPropCropRangeforACR
 	#Set up test data
 	testdata <- testdata[,c("ADMIN_FIPS", "ConversionPropCropRangeforACR", vars)]
 	testdata <- testdata[complete.cases(testdata),]
 	#testdata$State <- as.factor(testdata$State)
 	#testdata$Year <- as.factor(testdata$Year)
 
+	#tune rf
+	#print("tuning random forest")
+	#tunes <- mclapply(seq(100, 2100, by=200), function(currtree){
+	#	tunemod <- tuneRF(x,y, ntreeTry=currtree, mtryStart=5, stepFactor=2, improve=0.001, plot=FALSE)
+	#	return(tunemod)
+	#}, mc.cores=4)
+	#tuneDF <- do.call(rbind, tunes)
+	#tuneDF <- data.frame(tuneDF)
+	#names(tuneDF) <-c("mtry", "OOB")
+	#tuneDF$ntrees <- rep(seq(100, 2100, by=200), times=sapply(tunes, length)/2)
+	#write.csv(tuneDF, sprintf("model_output/RandomForest_tuning_%s.csv", currname))
+	#tuneplot <- ggplot(tuneDF, aes(x=ntrees, y=OOB, group=mtry, color=mtry))+
+	#geom_line() +
+	#geom_point()
+	#ggsave(sprintf("model_output/figures/RandomForest_tuning_%s.png", currname), tuneplot)
+	
 	#run random forest, select variables
 	print("run random forest model selection")
 	#rfmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=20, importance=TRUE, do.trace=100)
-	x <- trainingdata[,vars]
-	y <- trainingdata$ConversionPropCropRangeforACR
-	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=1000, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
+	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=500, mtry=2, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
 	save(rfmod, file = sprintf("model_output/RandomForestModel_%s.rda", currname))
 	#load("my_model1.rda") #to open
 	
@@ -97,12 +113,12 @@ modelfun <- function(currname, trainingdata, testdata){
 	orderedVars <- rfmod$selvars[order(rfmod$importance, decreasing=TRUE)]
 	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
 	par(mfrow=c(3,3))
-	for(i in orderedVars){
-		pp <- partialPlot(rfmod$rf.final, trainingdata, i ,n.pt=301)  			
-		plot(pp, xlab=as.character(i), ylab="Conversion probability", main="", pch=19, col="grey70")
-		lines(lowess(pp), lty='solid')
-		}
-	dev.off()
+	for(i in orderedVars)){
+	pp <- partialPlot(rfmod$rf.final, trainingdata, eval(substitute(i)) ,n.pt=51)
+  	plot(pp, xlab=as.character(i), ylab="Conversion probability", main="", pch=19, col="grey70")
+	lines(lowess(pp), lty='solid')
+}	
+dev.off()
 		
 #Two dimensional partial dependence plots
 	print("starting 3d plots")
@@ -165,7 +181,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	#How well do the models perform
 	print("test model performance")
 	#test of performance against random
-	 rf.perm <- rf.significance(rfmod$rf.final, trainingdata[, vars], nperm = 1000, ntree = 1001)
+	 #rf.perm <- rf.significance(rfmod$rf.final, trainingdata[, vars], nperm = 1000, ntree = 500)
 	 #regression fit
 	 rf.regfit <- rf.regression.fit(rfmod$rf.final)
 
@@ -215,47 +231,52 @@ modelfun <- function(currname, trainingdata, testdata){
 ########################
 #PREDICT and TEST MODELS
 ########################
+allmodelList <- list()
 
 #Trial models with one yr lag
-modlcc1to6.1yrlag <- modelfun("LCC1to6_1yr_train0812_test1315", 
+allmodelList[[1]] <- list("LCC1to6_1yr_train0812_test1315", 
 			trainingdata=oneyrlag[oneyrlag$LCC == "LCC1to6" & oneyrlag$Year %in% c(2008:2012), ], testdata=oneyrlag[oneyrlag$LCC == "LCC1to6" & oneyrlag$Year %in% c(2013:2015), ])
 			
-modlcc1to4.1yrlag <- modelfun("LCC1to4_1yr_train0812_test1315", 
+allmodelList[[2]] <- list("LCC1to4_1yr_train0812_test1315", 
 			trainingdata=oneyrlag[oneyrlag$LCC == "LCC1to4" & oneyrlag$Year %in% c(2008:2012),], testdata=oneyrlag[oneyrlag$LCC == "LCC1to4" & oneyrlag$Year %in% c(2013:2015),])
 
-modlcc5or6.1yrlag <- modelfun("LCC5or6_1yr_train0812_test1315", 
+allmodelList[[3]] <- list("LCC5or6_1yr_train0812_test1315", 
 			trainingdata=oneyrlag[oneyrlag$LCC == "LCC5or6" & oneyrlag$Year %in% c(2008:2012),], testdata=oneyrlag[oneyrlag$LCC == "LCC5or6" & oneyrlag$Year %in% c(2013:2015),])
 
 #Trial models with two year lag			
-modlcc1to6.2yrlag <- modelfun("LCC1to6_2yr_train0811_test1215", 
+allmodelList[[4]] <- list("LCC1to6_2yr_train0811_test1215", 
 			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
 			
-modlcc1to4.2yrlag <- modelfun("LCC1to4_2yr_train0811_test1215", 
+allmodelList[[5]] <- list("LCC1to4_2yr_train0811_test1215", 
 			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
 
-modlcc5or6.2yrlag <- modelfun("LCC5or6_2yr_train0811_test1215", 
+allmodelList[[6]] <- list("LCC5or6_2yr_train0811_test1215", 
 			trainingdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
 			
 #Trial models with three year lag			
-modlcc1to6.3yrlag <- modelfun("LCC1to6_3yr_train0911_test1214", 
+allmodelList[[7]] <- list("LCC1to6_3yr_train0911_test1214", 
 			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeYrAverage=="2012_2014",])
 			
-modlcc1to4.3yrlag <- modelfun("LCC1to4_3yr_train0911_test1214", 
+allmodelList[[8]] <- list("LCC1to4_3yr_train0911_test1214", 
 			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeYrAverage=="2012_2014",])
 
-modlcc5or6.3yrlag <- modelfun("LCC5or6_3yr_train0911_test1214", 
+allmodelList[[9]] <- list("LCC5or6_3yr_train0911_test1214", 
 			trainingdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeYrAverage=="2012_2014",])
 			
 #Trial models with four year lag			
-modlcc1to6.4yrlag <- modelfun("LCC1to6_4yr_train0911_test1214", 
+allmodelList[[10]] <- list("LCC1to6_4yr_train0911_test1214", 
 			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FourYrAverage=="2012_2015",])
 			
-modlcc1to4.4yrlag <- modelfun("LCC1to4_4yr_train0911_test1214", 
+allmodelList[[11]] <- list("LCC1to4_4yr_train0911_test1214", 
 			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FourYrAverage=="2012_2015",])
 
-modlcc5or6.4yrlag <- modelfun("LCC5or6_4yr_train0911_test1214", 
+allmodelList[[12]] <- list("LCC5or6_4yr_train0911_test1214", 
 			trainingdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2012_2015",])
 
 ############################
+
+mclapply(allmodelList, function(z) modfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4)
+
+
 
 
