@@ -29,7 +29,7 @@ fouryrlag <- read.csv("tables/all data combined/LandConversion_combinedData_allU
 #CHECK CORRELATION OF VARIABLES
 ########################
 #check correlation of control variables
-allvars <- c("TotalRangeorCropAreainLCC_ha", "Area_Ranget0", "Area_cropland", "PercentArea_Crop","PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "AREA_URBAN_ha", "AREAPCT_URBAN")
+allvars <- c("TotalRangeorCropAreainLCC_ha", "Area_Ranget0", "Area_cropland", "PercentArea_CropStatic", "PercentArea_Crop", "PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentLandIrrigated", "PercentCroplandthatisIrrigated", "AREA_URBAN_ha", "AREAPCT_URBAN")
 cors <- cor(oneyrlag[oneyrlag$LCC=="LCC1to6",allvars], method="pearson", use="complete.obs")
 png(filename="model_output/CorrelationPlotofVariables.png", width=930, height=720, pointsize=16)
 	corrplot(cors, method='number', type='lower')
@@ -51,6 +51,17 @@ png(filename="model_output/figures/Conversion_2009to2010_vs_2013to2014.png", wid
 	plot(x=twoyrlag[twoyrlag$TwoyrAverage=="2009", "ConversionPropCropRangeforACR"], y=twoyrlag[twoyrlag$TwoyrAverage=="2013", "ConversionPropCropRangeforACR"], xlab="Conversion 2009 to 2010", ylab="Conversion 2013 to 2014")
 dev.off()
 
+########################
+#TEST MODEL with ALL VARIABLES
+########################
+#run random forest, all variables
+trainingdata <- oneyrlag[oneyrlag$LCC == "LCC1to6", ]
+trainingdata <- trainingdata[complete.cases(trainingdata),]
+rftestmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=700, importance=TRUE, seed=1234)
+#variable importance
+png(filename="model_output/figures/Plot_randomforestvariableimportance_allvariables_allYears.png", width=2000, height=640, pointsize=18)
+	varImpPlot(rftestmod)
+dev.off()
 
 ########################
 #SET UP MODEL FUNCTION
@@ -58,7 +69,7 @@ dev.off()
 #Random Forest regression model
 modelfun <- function(currname, trainingdata, testdata){
 	print(paste0("starting ", currname))
-	vars <- c("TotalRangeorCropAreainLCC_ha", "PercentArea_Crop", "PercRange_left_CRP", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "AREAPCT_URBAN")
+	vars <- c("TotalRangeorCropAreainLCC_ha", "PercentArea_CropStatic", "PercentArea_Crop", "PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "PercentLandIrrigated", "AREAPCT_URBAN")
 		
 	#Set up training data
 	print("setup data")
@@ -93,7 +104,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	#run random forest, select variables
 	print("run random forest model selection")
 	#rfmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=20, importance=TRUE, do.trace=100)
-	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=500, mtry=2, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
+	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=700, mtry=2, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
 	save(rfmod, file = sprintf("model_output/RandomForestModel_%s.rda", currname))
 	#load("my_model1.rda") #to open
 	
@@ -195,7 +206,7 @@ dev.off()
 	#R-squared
 		rsq <- with(testdata, 1-sum((ConversionPropCropRangeforACR-predicted_conversion)^2)/sum((ConversionPropCropRangeforACR-mean(ConversionPropCropRangeforACR))^2))
 	prediction_accuracy <- data.frame(mape, pcor, rsq)
-	write.csv(prediction_accuracy, filename=sprintf("model_output/Prediction_accuracy_%s.csv", currname))
+	write.csv(prediction_accuracy, sprintf("model_output/Prediction_accuracy_%s.csv", currname))
 	 
 	#save model summaries to a text file
 	sink(sprintf("model_output/Summary_randomforestmodel_%s.txt", currname))
