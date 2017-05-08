@@ -211,6 +211,7 @@ controlVariablesDF <- merge(controlVariablesDF, urbanDF[,c("ADMIN_FIPS","AREA_UR
 #Merge CONTROL VARIABLES with RESPONSE VARIABLES
 #####################
 controlVariablesDF$PercentCroplandthatisIrrigated[is.na(controlVariablesDF$PercentCroplandthatisIrrigated)] <- 0
+controlVariablesDF$PercentLandIrrigated[is.na(controlVariablesDF$PercentLandIrrigated)] <- 0
 write.csv(controlVariablesDF, paste0(getwd(), "/Analysis/tables/all data combined/LandConversion_combinedData_allUSStates_byLCC_plusControlVariables.csv"), row.names=FALSE)
 
 ######################
