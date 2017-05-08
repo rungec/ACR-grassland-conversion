@@ -54,13 +54,25 @@ dev.off()
 ########################
 #TEST MODEL with ALL VARIABLES
 ########################
-#run random forest, all variables
+#run random forest, all variables, all years
+allvars <- c("TotalRangeorCropAreainLCC_ha", "Area_cropland", "PercentArea_CropStatic", "PercentArea_Crop", "PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentLandIrrigated", "PercentCroplandthatisIrrigated", "AREA_URBAN_ha", "AREAPCT_URBAN")
 trainingdata <- oneyrlag[oneyrlag$LCC == "LCC1to6", ]
+trainingdata <- trainingdata[, c("ConversionPropCropRangeforACR", allvars)]
 trainingdata <- trainingdata[complete.cases(trainingdata),]
 rftestmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=700, importance=TRUE, seed=1234)
 #variable importance
-png(filename="model_output/figures/Plot_randomforestvariableimportance_allvariables_allYears.png", width=2000, height=640, pointsize=18)
-	varImpPlot(rftestmod)
+png(filename="model_output/figures/Plot_randomforestvariableimportance_allvariables_allyears.png", width=2000, height=640, pointsize=18)
+varImpPlot(rftestmod)
+dev.off()
+
+#best variables for years 2008 to 2012
+trainingdata <- oneyrlag[oneyrlag$LCC == "LCC1to6" & oneyrlag$Year %in% 2008:2012, ]
+trainingdata <- trainingdata[, c("ConversionPropCropRangeforACR", allvars)]
+trainingdata <- trainingdata[complete.cases(trainingdata),]
+rftestmod2 <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=700, importance=TRUE, seed=1234)
+#variable importance
+png(filename="model_output/figures/Plot_randomforestvariableimportance_allvariables_yr08to12.png", width=2000, height=640, pointsize=18)
+varImpPlot(rftestmod2)
 dev.off()
 
 ########################
@@ -69,7 +81,7 @@ dev.off()
 #Random Forest regression model
 modelfun <- function(currname, trainingdata, testdata){
 	print(paste0("starting ", currname))
-	vars <- c("TotalRangeorCropAreainLCC_ha", "PercentArea_CropStatic", "PercentArea_Crop", "PercRange_left_CRP", "Popn", "Popn_Chg", "PopnChg_Perc", "PercentCroplandthatisIrrigated", "PercentLandIrrigated", "AREAPCT_URBAN")
+	vars <- c("TotalRangeorCropAreainLCC_ha", "Area_cropland", "PercentArea_CropStatic", "PercRange_left_CRP", "Popn", "PopnChg_Perc", "PercentLandIrrigated", "AREAPCT_URBAN")
 		
 	#Set up training data
 	print("setup data")
@@ -124,7 +136,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	orderedVars <- rfmod$selvars[order(rfmod$importance, decreasing=TRUE)]
 	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
 	par(mfrow=c(3,3))
-	for(i in orderedVars)){
+	for(i in orderedVars){
 	pp <- partialPlot(rfmod$rf.final, trainingdata, eval(substitute(i)) ,n.pt=51)
   	plot(pp, xlab=as.character(i), ylab="Conversion probability", main="", pch=19, col="grey70")
 	lines(lowess(pp), lty='solid')
@@ -284,9 +296,14 @@ allmodelList[[11]] <- list("LCC1to4_4yr_train0911_test1214",
 allmodelList[[12]] <- list("LCC5or6_4yr_train0911_test1214", 
 			trainingdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2012_2015",])
 
+#Trial models with no lag, all years data
+allmodelList[[13]] <- list("LCC1to6_1yr_train0815_test14", 
+			trainingdata=oneyrlag[oneyrlag$LCC == "LCC1to6", ], testdata=oneyrlag[oneyrlag$LCC == "LCC1to6" & oneyrlag$Year==2014, ])
+			
+
 ############################
 
-mclapply(allmodelList, function(z) modfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4)
+mclapply(allmodelList, function(z) modelfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4)
 
 
 
