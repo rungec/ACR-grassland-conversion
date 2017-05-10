@@ -119,33 +119,36 @@ modelfun <- function(currname, trainingdata, testdata){
 	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=700, mtry=2, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
 	save(rfmod, file = sprintf("model_output/RandomForestModel_%s.rda", currname))
 	#load("my_model1.rda") #to open
-	
+
 	#variable importance
 	print("plot variable importance")
 	png(filename=sprintf("model_output/figures/Plot_randomforestvariableimportance_%s.png", currname), width=2000, height=640, pointsize=18)
 		par(mfrow=c(1,3))
-		p <- cbind(rfmod$importance, rfmod$rf.final$importance)   
+		p <- cbind(rfmod$importance, importance(rfmod$rf.final))   
 		ord <- rev(order(p[,1], decreasing=TRUE)) 
 		dotchart(p[ord,1], main="Scaled Variable Importance", pch=19, labels=dimnames(p[ord,])[[1]])
-		dotchart(p[ord,2], main="Decrease in MSE", pch=19)
-		dotchart(p[ord,3], main="Decrease in Node Purity", pch=19)
+		dotchart(p[ord,2], main="% Increase MSE", pch=19)
+		dotchart(p[ord,3], main="Increase Node Purity", pch=19)
 	dev.off()
+#Note that theses are the increases in explanatory power when that variable is cumulatively added to already existing variables in the model ie including the variable increases the MSE that is explained by x%
 	
 	#plot partial dependencies
-	print("plot partial dependencies")
-	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
-	par(mfrow=c(3,3))
-	imp <- importance(rfmod$rf.final)
-	impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
-	for(i in seq_along(impvar)){
-		pp <- partialPlot(rfmod$rf.final, trainingdata, impvar[i])
-		plot(pp, xlab=impvar[i], ylab="Conversion probability", main=paste("Partial Dependence on", impvar[i]), pch=19, col="grey70")
-	lines(lowess(pp), lty='solid')
-	}	
-dev.off()
+	#print("plot partial dependencies")
+	#png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
+	#par(mfrow=c(3,3))
+	#imp <- importance(rfmod$rf.final)
+	#impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
+	#for(i in seq_along(impvar)){
+	#	pp <- partialPlot(rfmod$rf.final, trainingdata, impvar[i], xlab=impvar[i], ylab="Conversion probability", main=paste("Partial Dependence on", impvar[i]), lty='solid', col="black")
+	#points(pp, pch=19, col="grey70")	
+	#lines(lowess(pp), lty='solid', col="black")
+	#}	
+#dev.off()
 		
 #Two dimensional partial dependence plots
 	print("starting 3d plots")
+	imp <- importance(rfmod$rf.final)
+	orderedVars <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
 	#orderedVars <- rfmod$selvars[order(rfmod$importance, decreasing=TRUE)]
 	var1_vals <- seq(from = min(trainingdata[,orderedVars[1]]),
 			 to = max(trainingdata[,orderedVars[1]]),
