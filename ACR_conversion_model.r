@@ -133,14 +133,15 @@ modelfun <- function(currname, trainingdata, testdata){
 	
 	#plot partial dependencies
 	print("plot partial dependencies")
-	orderedVars <- rfmod$selvars[order(rfmod$importance, decreasing=TRUE)]
 	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
 	par(mfrow=c(3,3))
-	for(i in orderedVars){
-	pp <- partialPlot(rfmod$rf.final, trainingdata, eval(substitute(i)) ,n.pt=51)
-  	plot(pp, xlab=as.character(i), ylab="Conversion probability", main="", pch=19, col="grey70")
+	imp <- importance(rfmod$rf.final)
+	impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
+	for(i in seq_along(impvar)){
+		pp <- partialPlot(rfmod$rf.final, trainingdata, impvar[i])
+		plot(pp, xlab=impvar[i], ylab="Conversion probability", main=paste("Partial Dependence on", impvar[i]), pch=19, col="grey70")
 	lines(lowess(pp), lty='solid')
-}	
+	}	
 dev.off()
 		
 #Two dimensional partial dependence plots
