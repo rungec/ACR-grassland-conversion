@@ -10,7 +10,7 @@ library(rgl) #for nmds 3 plots
 library(parallel)
 
 
-options(stringsAsFactors=FALSE) # turn off automatic factor coersion
+options(stringsAsFactors=TRUE) # turn off automatic factor coersion
 
 #wd <- "Y:/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis"
 wd <- "/home/runge/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis/"
@@ -229,8 +229,8 @@ modelfun <- function(currname, trainingdata, testdata){
 		print(paste("Random Forest Model",  currname, sep="_"))
 		print("Variable Selection")
 		print(rfmod)
-		print("Permutation Importance")
-		print(rf.perm)
+		#print("Permutation Importance")
+		#print(rf.perm)
 		print("Regression fit")
 		print(rf.regfit)
 		print("Predictive ability")
@@ -272,13 +272,13 @@ allmodelList[[3]] <- list("LCC5or6_1yr_train0812_test1315",
 
 #Trial models with two year lag			
 allmodelList[[4]] <- list("LCC1to6_2yr_train0811_test1215", 
-			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
+			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoyrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to6" & twoyrlag$TwoyrAverage %in% c(2012:2015),])
 			
 allmodelList[[5]] <- list("LCC1to4_2yr_train0811_test1215", 
-			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
+			trainingdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoyrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC1to4" & twoyrlag$TwoyrAverage %in% c(2012:2015),])
 
 allmodelList[[6]] <- list("LCC5or6_2yr_train0811_test1215", 
-			trainingdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoYrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoYrAverage %in% c(2012:2015),])
+			trainingdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoyrAverage %in% c(2008:2011),], testdata=twoyrlag[twoyrlag$LCC == "LCC5or6" & twoyrlag$TwoyrAverage %in% c(2012:2015),])
 			
 #Trial models with three year lag			
 allmodelList[[7]] <- list("LCC1to6_3yr_train0911_test1214", 
@@ -307,7 +307,7 @@ allmodelList[[13]] <- list("LCC1to6_1yr_train0815_test14",
 
 ############################
 
-mclapply(allmodelList, function(z) modelfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4)
+mclapply(allmodelList, function(z) modelfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4, mc.preschedule = FALSE)
 
 
 
