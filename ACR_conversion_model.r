@@ -134,18 +134,18 @@ modelfun <- function(currname, trainingdata, testdata){
 #Note that theses are the increases in explanatory power when that variable is cumulatively added to already existing variables in the model ie including the variable increases the MSE that is explained by x%
 	
 	#plot partial dependencies
-	print("plot partial dependencies")
-	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
-	par(mfrow=c(2,4))
-	imp <- importance(rfmod$rf.final)
-	impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
-	for(i in impvar){
-		currtrain <- trainingdata[complete.cases(trainingdata[,vars]),vars] #drop nas
-		pp <- partialPlot(rfmod$rf.final, currtrain, i, xlab=i, ylab="Conversion probability", main=paste("Partial Dependence on", i), lty='solid', col="black")
-		points(pp, pch=19, col="grey70")	
-		lines(lowess(pp), lty='solid', col="black")
-		}
-	dev.off()
+	#print("plot partial dependencies")
+	#png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
+	#par(mfrow=c(2,4))
+	#imp <- importance(rfmod$rf.final)
+	#impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
+	#for(i in impvar){
+	#	currtrain <- trainingdata[complete.cases(trainingdata[,vars]),vars] #drop nas
+		#pp <- partialPlot(rfmod$rf.final, currtrain, i, xlab=i, ylab="Conversion probability", main=paste("Partial Dependence on", i), lty='solid', col="black")
+		#points(pp, pch=19, col="grey70")	
+		#lines(lowess(pp), lty='solid', col="black")
+		#}
+	#dev.off()
 
 #Two dimensional partial dependence plots
 	print("starting 3d plots")
@@ -241,10 +241,10 @@ modelfun <- function(currname, trainingdata, testdata){
 
 	#plot predicted against actual
 	png(filename=sprintf("model_output/figures/Plot_predicted_vs_actual_%s.png", currname), width=670, height=670, pointsize=16)
-	p <- ggplot(predictions, aes(y=ConversionPropCropRangeforACR, x=predicted_conversion)) +
+	p <- ggplot(testdata, aes(y=ConversionPropCropRangeforACR, x=predicted_conversion)) +
 		geom_point(alpha=0.5) +
 		xlab("Predicted conversion")+ ylab("Actual conversion")+
-		xlim(range(predictions$ConversionPropCropRangeforACR))+ylim(range(predictions$ConversionPropCropRangeforACR))+
+		xlim(range(testdata$ConversionPropCropRangeforACR))+ylim(range(testdata$ConversionPropCropRangeforACR))+
 		geom_abline(color="grey70") +
 		theme_classic(20)+
 		ggtitle(sprintf("RandomForest %s", currname))
