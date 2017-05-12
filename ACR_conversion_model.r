@@ -1,4 +1,5 @@
 
+library(rowr) #for cbind.fill
 library(plyr) #for ddply
 library(corrplot) #for correlation plot
 library(ggplot2)
@@ -86,7 +87,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	#Set up training data
 	print("setup data")
 	trainingdata <- trainingdata[, c("ConversionPropCropRangeforACR", vars)]
-	trainingdata <- trainingdata[complete.cases(trainingdata),]
+	trainingdata <- trainingdata[complete.cases(trainingdata[,c("ConversionPropCropRangeforACR",vars)]),c("ConversionPropCropRangeforACR",vars)]
 	#trainingdata$State <- as.factor(trainingdata$State)
 	#trainingdata$Year <- as.factor(trainingdata$Year)
 	x <- trainingdata[,vars]
@@ -124,7 +125,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	print("plot variable importance")
 	png(filename=sprintf("model_output/figures/Plot_randomforestvariableimportance_%s.png", currname), width=2000, height=640, pointsize=18)
 		par(mfrow=c(1,3))
-		p <- cbind(rfmod$importance, importance(rfmod$rf.final))   
+		p <- rowr::cbind.fill(rfmod$importance, importance(rfmod$rf.final), fill=0)   
 		ord <- rev(order(p[,1], decreasing=TRUE)) 
 		dotchart(p[ord,1], main="Scaled Variable Importance", pch=19, labels=dimnames(p[ord,])[[1]])
 		dotchart(p[ord,2], main="% Increase MSE", pch=19)
@@ -133,18 +134,19 @@ modelfun <- function(currname, trainingdata, testdata){
 #Note that theses are the increases in explanatory power when that variable is cumulatively added to already existing variables in the model ie including the variable increases the MSE that is explained by x%
 	
 	#plot partial dependencies
-	#print("plot partial dependencies")
-	#png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
-	#par(mfrow=c(3,3))
-	#imp <- importance(rfmod$rf.final)
-	#impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
-	#for(i in seq_along(impvar)){
-	#	pp <- partialPlot(rfmod$rf.final, trainingdata, impvar[i], xlab=impvar[i], ylab="Conversion probability", main=paste("Partial Dependence on", impvar[i]), lty='solid', col="black")
-	#points(pp, pch=19, col="grey70")	
-	#lines(lowess(pp), lty='solid', col="black")
-	#}	
-#dev.off()
-		
+	print("plot partial dependencies")
+	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s.png", currname), width=2010, height=1240, pointsize=16)
+	par(mfrow=c(2,4))
+	imp <- importance(rfmod$rf.final)
+	impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
+	for(i in impvar){
+		currtrain <- trainingdata[complete.cases(trainingdata[,vars]),vars] #drop nas
+		pp <- partialPlot(rfmod$rf.final, currtrain, i, xlab=i, ylab="Conversion probability", main=paste("Partial Dependence on", i), lty='solid', col="black")
+		points(pp, pch=19, col="grey70")	
+		lines(lowess(pp), lty='solid', col="black")
+		}
+	dev.off()
+
 #Two dimensional partial dependence plots
 	print("starting 3d plots")
 	imp <- importance(rfmod$rf.final)
@@ -184,7 +186,7 @@ modelfun <- function(currname, trainingdata, testdata){
 		# Recode facet z-values into color indices
 		facetcol <- cut(zfacet, nbcol)
 	
-	png(filename=sprintf("model_output/figures/Plot_VariablePartialDependencies_%s_interactions.png", currname), width=1440, height=1440, pointsize=24)
+	png(filename=sprintf("model_output/figures/Plot_VariableInteractions_%s.png", currname), width=1440, height=1440, pointsize=24)
 	# Use persp for 3D plotting
 	persp(x = var1_vals, y = var2_vals, z = z, theta = -45,
 		  xlab = as.character(orderedVars[1]),
@@ -239,14 +241,16 @@ modelfun <- function(currname, trainingdata, testdata){
 
 	#plot predicted against actual
 	png(filename=sprintf("model_output/figures/Plot_predicted_vs_actual_%s.png", currname), width=670, height=670, pointsize=16)
-	p <- ggplot(testdata, aes(x=ConversionPropCropRangeforACR, y=predicted_conversion)) +
+	p <- ggplot(predictions, aes(y=ConversionPropCropRangeforACR, x=predicted_conversion)) +
 		geom_point(alpha=0.5) +
-		ylab("Predicted conversion")+ xlab("Actual conversion")+
+		xlab("Predicted conversion")+ ylab("Actual conversion")+
+		xlim(range(predictions$ConversionPropCropRangeforACR))+ylim(range(predictions$ConversionPropCropRangeforACR))+
 		geom_abline(color="grey70") +
 		theme_classic(20)+
 		ggtitle(sprintf("RandomForest %s", currname))
-	p
+	print(p)
 	dev.off()
+	
 
 	print(paste0("finished ", currname))
 	#return the random forest model
@@ -282,33 +286,42 @@ allmodelList[[6]] <- list("LCC5or6_2yr_train0811_test1215",
 			
 #Trial models with three year lag			
 allmodelList[[7]] <- list("LCC1to6_3yr_train0911_test1214", 
-			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeYrAverage=="2012_2014",])
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2012_2014",])
 			
 allmodelList[[8]] <- list("LCC1to4_3yr_train0911_test1214", 
-			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeYrAverage=="2012_2014",])
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeyrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to4" & threeyrlag$ThreeyrAverage=="2012_2014",])
 
 allmodelList[[9]] <- list("LCC5or6_3yr_train0911_test1214", 
-			trainingdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeYrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeYrAverage=="2012_2014",])
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeyrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC5or6" & threeyrlag$ThreeyrAverage=="2012_2014",])
 			
 #Trial models with four year lag			
 allmodelList[[10]] <- list("LCC1to6_4yr_train0911_test1214", 
-			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FourYrAverage=="2012_2015",])
+			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FouryrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FouryrAverage=="2012_2015",])
 			
 allmodelList[[11]] <- list("LCC1to4_4yr_train0911_test1214", 
-			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FourYrAverage=="2012_2015",])
+			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FouryrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to4" & fouryrlag$FouryrAverage=="2012_2015",])
 
 allmodelList[[12]] <- list("LCC5or6_4yr_train0911_test1214", 
-			trainingdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FourYrAverage=="2012_2015",])
+			trainingdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FouryrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC5or6" & fouryrlag$FouryrAverage=="2012_2015",])
 
 #Trial models with no lag, all years data
 allmodelList[[13]] <- list("LCC1to6_1yr_train0815_test14", 
 			trainingdata=oneyrlag[oneyrlag$LCC == "LCC1to6", ], testdata=oneyrlag[oneyrlag$LCC == "LCC1to6" & oneyrlag$Year==2014, ])
-			
+#Trial models with 3yr lag, all years data
+allmodelList[[14]] <- list("LCC1to6_3yr_train0815_test1214", 
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6", ], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2012_2014", ])			
 
 ############################
 
 mclapply(allmodelList, function(z) modelfun(currname=z[[1]], trainingdata=z[[2]], testdata=z[[3]]), mc.cores=4, mc.preschedule = FALSE)
 
+modelfun("LCC1to6_4yr_train0911_test1214", 
+			trainingdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FouryrAverage=="2008_2011",], testdata=fouryrlag[fouryrlag$LCC == "LCC1to6" & fouryrlag$FouryrAverage=="2012_2015",])
 
+modelfun("LCC1to6_3yr_train0911_test1214", 
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2009_2011",], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2012_2014",])
+
+modelfun("LCC1to6_3yr_train0815_test1214", 
+			trainingdata=threeyrlag[threeyrlag$LCC == "LCC1to6", ], testdata=threeyrlag[threeyrlag$LCC == "LCC1to6" & threeyrlag$ThreeyrAverage=="2012_2014", ])
 
 
