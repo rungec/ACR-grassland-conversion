@@ -118,14 +118,15 @@ modelfun <- function(currname, trainingdata, testdata){
 	print("run random forest model selection")
 	#rfmod <- randomForest(ConversionPropCropRangeforACR ~., data=trainingdata, ntree=20, importance=TRUE, do.trace=100)
 	rfmod <- rf.modelSel(x=x, y=y, imp.scale='mir', ntree=700, mtry=2, final.model=TRUE, proximity=TRUE, mse=TRUE, rsp=TRUE, seed=1234, keepforest=TRUE)
-	save(rfmod, file = sprintf("model_output/RandomForestModel_%s.rda", currname))
+	save(rfmod, file = sprintf("model_output/models/RandomForestModel_%s.rda", currname))
 	#load("my_model1.rda") #to open
 
 	#variable importance
 	print("plot variable importance")
 	png(filename=sprintf("model_output/figures/Plot_randomforestvariableimportance_%s.png", currname), width=2000, height=640, pointsize=18)
 		par(mfrow=c(1,3))
-		p <- rowr::cbind.fill(rfmod$importance, importance(rfmod$rf.final), fill=0)   
+		p <- rowr::cbind.fill(rfmod$importance, importance(rfmod$rf.final), fill=0)  
+		row.names(p) <- row.names(rfmod$importance) 
 		ord <- rev(order(p[,1], decreasing=TRUE)) 
 		dotchart(p[ord,1], main="Scaled Variable Importance", pch=19, labels=dimnames(p[ord,])[[1]])
 		dotchart(p[ord,2], main="% Increase MSE", pch=19)
@@ -141,7 +142,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	#impvar <- rownames(imp)[order(imp[,1], decreasing=TRUE)]
 	#for(i in impvar){
 	#	currtrain <- trainingdata[complete.cases(trainingdata[,vars]),vars] #drop nas
-		#pp <- partialPlot(rfmod$rf.final, currtrain, i, xlab=i, ylab="Conversion probability", main=paste("Partial Dependence on", i), lty='solid', col="black")
+		#pp <- partialPlot(rfmod$rf.final, currtrain, eval(substitute(i), xlab=i, ylab="Conversion probability", main=paste("Partial Dependence on", i), lty='solid', col="black")
 		#points(pp, pch=19, col="grey70")	
 		#lines(lowess(pp), lty='solid', col="black")
 		#}
@@ -205,7 +206,7 @@ modelfun <- function(currname, trainingdata, testdata){
 	#predict conversion
 	print("predict conversion")
 	testdata$predicted_conversion <- predict(rfmod$rf.final, testdata)
-	write.csv(testdata, sprintf("model_output/ModelPredictions_%s.csv", currname), row.names=FALSE)
+	write.csv(testdata, sprintf("model_output/predictions/ModelPredictions_%s.csv", currname), row.names=FALSE)
 	
 	#How well do the models perform
 	print("test model performance")
@@ -217,17 +218,17 @@ modelfun <- function(currname, trainingdata, testdata){
 	#How well do the models predict future conversion
 	# MeanAbsolutePercentageError (MAPE)=mean(abs(predicteds-actuals)/actuals) 
 		#http://r-statistics.co/Linear-Regression.html
-		mape <- with(testdata, mean(abs((predicted_conversion - ConversionPropCropRangeforACR))/ConversionPropCropRangeforACR))  
+		mape <- with(testdata, mean(abs(predicted_conversion - ConversionPropCropRangeforACR)/ConversionPropCropRangeforACR, na.rm=TRUE))  
 	# mean absolute percentage deviation
 		#Pearson's correlation
 		pcor <- with(testdata, cor(predicted_conversion, ConversionPropCropRangeforACR))
 	#R-squared
-		rsq <- with(testdata, 1-sum((ConversionPropCropRangeforACR-predicted_conversion)^2)/sum((ConversionPropCropRangeforACR-mean(ConversionPropCropRangeforACR))^2))
+		rsq <- with(testdata, 1-{abs(sum(ConversionPropCropRangeforACR-predicted_conversion)^2/abs(sum(ConversionPropCropRangeforACR-mean(ConversionPropCropRangeforACR))^2)})
 	prediction_accuracy <- data.frame(mape, pcor, rsq)
-	write.csv(prediction_accuracy, sprintf("model_output/Prediction_accuracy_%s.csv", currname))
+	write.csv(prediction_accuracy, sprintf("model_output/predictions/Prediction_accuracy_%s.csv", currname))
 	 
 	#save model summaries to a text file
-	sink(sprintf("model_output/Summary_randomforestmodel_%s.txt", currname))
+	sink(sprintf("model_output/model_summaries/Summary_randomforestmodel_%s.txt", currname))
 		print(paste("Random Forest Model",  currname, sep="_"))
 		print("Variable Selection")
 		print(rfmod)
