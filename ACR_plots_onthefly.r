@@ -10,7 +10,6 @@ library(rgl) #for nmds 3 plots
 #library(ggRandomForests)
 library(parallel)
 
-
 options(stringsAsFactors=FALSE) # turn off automatic factor coersion
 
 wd <- "Y:/Data/NCEAS_Postdoc/P4 ACR revised methods/Analysis"
