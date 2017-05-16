@@ -11,3 +11,4 @@ Folder *model.zip* contains the predictive model, and an example dataset contain
 *ACR_conversion_model.r* tunes, creates and tests sets of random forest models, and outputs model predictions of annual conversion rates for grassland & shrubland to cropland at county scale.
 
 *ACR_plots_onthefly.r* make some plots of random forest models, including partial plots and comparison of predicted conversion rates against actual conversion rates
+
