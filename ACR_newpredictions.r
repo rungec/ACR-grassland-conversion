@@ -52,7 +52,7 @@ updateddata <- read.csv("mynewdata.csv", header=TRUE)
 	
 #Add county percentile rankings
 	predfun <- ecdf(updateddata$predicted_conversion)
-	updateddata$Prediction_percentile <- actfun(updateddata$predicted_conversion)	
+	updateddata$Prediction_percentile <- predfun(updateddata$predicted_conversion)	
 
 #Save predictions	
 	write.csv(updateddata, sprintf"ModelPredictions_%s.csv", currname), row.names=FALSE)
